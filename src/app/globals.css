@@ -1,26 +1,190 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  --animate-fade-in: fade-in 0.2s ease-out;
+  --animate-slide-in: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slide-in {
+    from { transform: translateY(1rem) scale(0.95); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+:root {
+  --background: #09090b;
+  --foreground: #f4f4f5;
+  --border: #27272a;
 }
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Custom scrollbar for grid scroll */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #09090b;
+}
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+/* Print optimization styles */
+@media print {
+  html {
+    height: auto !important;
+  }
+
+  body {
+    background: white !important;
+    color: #000000 !important;
+    display: block !important;
+    height: auto !important;
+    min-height: auto !important;
+  }
+
+  body.a4-print-active .min-h-screen,
+  body.pos-print-active .min-h-screen,
+  body.a4-print-active div[class*="md:pl-"],
+  body.pos-print-active div[class*="md:pl-"],
+  body.a4-print-active main,
+  body.pos-print-active main {
+    display: block !important;
+    flex: none !important;
+    float: none !important;
+    height: auto !important;
+    min-height: auto !important;
+  }
+  
+  /* Hide sidebar, navigation, scrollbar and screen-only elements */
+  aside, 
+  button, 
+  .no-print,
+  .mobile-bottom-bar,
+  header {
+    display: none !important;
+  }
+
+  /* Make main content expand to full page width */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Clear Pl-64 or Pl-20 padding added on wrapper by LayoutShell client script */
+  div[class*="md:pl-"] {
+    padding-left: 0 !important;
+  }
+
+  /* Optimize print elements colors */
+  .print-card {
+    background: transparent !important;
+    border: 1px solid #d4d4d8 !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+  }
+
+  .print-text-dark {
+    color: #18181b !important;
+  }
+
+  .print-border-clean {
+    border-color: #e4e4e7 !important;
+  }
+
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  tr {
+    border-bottom: 1px solid #e4e4e7 !important;
+    page-break-inside: avoid !important;
+  }
+
+  th, td {
+    color: #000000 !important;
+    background: transparent !important;
+    border-bottom: 1px solid #e4e4e7 !important;
+  }
+
+  /* POS thermal receipt overrides */
+  body.pos-print-active {
+    width: 80mm !important;
+    max-width: 80mm !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
+    color: #000000 !important;
+  }
+  
+  body.pos-print-active aside,
+  body.pos-print-active .mobile-bottom-bar,
+  body.pos-print-active button,
+  body.pos-print-active .no-print {
+    display: none !important;
+  }
+
+  body.pos-print-active .pos-receipt-container {
+    display: block !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    padding: 2mm !important;
+    margin: 0 !important;
+    font-size: 11px !important;
+    font-family: monospace !important;
+    color: #000000 !important;
+  }
+
+  /* A4 Invoice print overrides */
+  body.a4-print-active {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 10mm !important;
+    margin: 0 !important;
+    background: white !important;
+    color: #000000 !important;
+  }
+  
+  body.a4-print-active aside,
+  body.a4-print-active .mobile-bottom-bar,
+  body.a4-print-active button,
+  body.a4-print-active .no-print {
+    display: none !important;
+  }
+
+  body.a4-print-active .a4-receipt-container {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: white !important;
+    color: #000000 !important;
+  }
+}
+

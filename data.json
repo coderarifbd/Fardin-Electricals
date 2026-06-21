@@ -1,0 +1,348 @@
+{
+  "products": [
+    {
+      "id": 1,
+      "name": "LED Bulb 12W Havells",
+      "category": "Lighting",
+      "currentStock": 43,
+      "minStockAlert": 15,
+      "movingAverageCost": 120,
+      "barcode": "8901234567891"
+    },
+    {
+      "id": 2,
+      "name": "Polycab Wire 1.5 sqmm (90m)",
+      "category": "Cables",
+      "currentStock": 12,
+      "minStockAlert": 5,
+      "movingAverageCost": 1850,
+      "barcode": "8901234567892"
+    },
+    {
+      "id": 3,
+      "name": "Piano Switch 6A Anchor",
+      "category": "Switches",
+      "currentStock": 150,
+      "minStockAlert": 50,
+      "movingAverageCost": 18,
+      "barcode": "8901234567893"
+    },
+    {
+      "id": 4,
+      "name": "Socket 5-Pin Anchor",
+      "category": "Switches",
+      "currentStock": 80,
+      "minStockAlert": 30,
+      "movingAverageCost": 35,
+      "barcode": "8901234567894"
+    },
+    {
+      "id": 5,
+      "name": "Orient Ceiling Fan 48 inch",
+      "category": "Fans",
+      "currentStock": 7,
+      "minStockAlert": 4,
+      "movingAverageCost": 2400,
+      "barcode": "8901234567895"
+    },
+    {
+      "id": 6,
+      "name": "PVC Electrical Tape Black",
+      "category": "Accessories",
+      "currentStock": 0,
+      "minStockAlert": 10,
+      "movingAverageCost": 12,
+      "barcode": "8901234567896"
+    },
+    {
+      "id": 7,
+      "name": "Capacitor",
+      "category": "FAN",
+      "currentStock": 9,
+      "minStockAlert": 10,
+      "movingAverageCost": 30,
+      "barcode": null
+    }
+  ],
+  "invoices": [
+    {
+      "id": 1,
+      "invoiceType": "PURCHASE",
+      "manualInvoiceNo": "P-901",
+      "invoiceDate": "2026-06-15",
+      "partyName": "Polycab Distributors Ltd.",
+      "totalAmount": 22200,
+      "paidAmount": 20000,
+      "dueAmount": 2200
+    },
+    {
+      "id": 2,
+      "invoiceType": "SALES",
+      "manualInvoiceNo": "S-451",
+      "invoiceDate": "2026-06-16",
+      "partyName": "Kabir Rahman",
+      "totalAmount": 4800,
+      "paidAmount": 3000,
+      "dueAmount": 1800
+    },
+    {
+      "id": 3,
+      "invoiceType": "SALES",
+      "manualInvoiceNo": "S-452",
+      "invoiceDate": "2026-06-18",
+      "partyName": "Mizanur Rahman",
+      "totalAmount": 1850,
+      "paidAmount": 1850,
+      "dueAmount": 0
+    },
+    {
+      "id": 4,
+      "invoiceType": "SALES",
+      "manualInvoiceNo": "15011",
+      "invoiceDate": "2026-06-21",
+      "partyName": "Raihan",
+      "totalAmount": 260,
+      "paidAmount": 260,
+      "dueAmount": 0,
+      "expectedPaymentDate": null
+    },
+    {
+      "id": 5,
+      "invoiceType": "PURCHASE",
+      "manualInvoiceNo": "002",
+      "invoiceDate": "2026-06-21",
+      "partyName": "Ariful Islam",
+      "totalAmount": 24300,
+      "paidAmount": 24300,
+      "dueAmount": 0,
+      "expectedPaymentDate": null,
+      "createdBy": "owner",
+      "partyId": 4
+    },
+    {
+      "id": 6,
+      "invoiceType": "SALES",
+      "manualInvoiceNo": "003",
+      "invoiceDate": "2026-06-21",
+      "partyName": "Ariful Islam",
+      "totalAmount": 2540,
+      "paidAmount": 2540,
+      "dueAmount": 0,
+      "expectedPaymentDate": null,
+      "createdBy": "owner",
+      "partyId": 4
+    }
+  ],
+  "invoiceItems": [
+    {
+      "id": 1,
+      "invoiceId": 1,
+      "productId": 2,
+      "quantity": 12,
+      "unitPrice": 1850,
+      "costPriceAtSale": 0
+    },
+    {
+      "id": 2,
+      "invoiceId": 2,
+      "productId": 5,
+      "quantity": 2,
+      "unitPrice": 2400,
+      "costPriceAtSale": 2400
+    },
+    {
+      "id": 3,
+      "invoiceId": 3,
+      "productId": 2,
+      "quantity": 1,
+      "unitPrice": 1850,
+      "costPriceAtSale": 1850
+    },
+    {
+      "id": 4,
+      "invoiceId": 4,
+      "productId": 1,
+      "quantity": 2,
+      "unitPrice": 130,
+      "costPriceAtSale": 120
+    },
+    {
+      "id": 5,
+      "invoiceId": 5,
+      "productId": 5,
+      "quantity": 10,
+      "unitPrice": 2400,
+      "costPriceAtSale": 2400
+    },
+    {
+      "id": 6,
+      "invoiceId": 5,
+      "productId": 7,
+      "quantity": 10,
+      "unitPrice": 30,
+      "costPriceAtSale": 30
+    },
+    {
+      "id": 7,
+      "invoiceId": 6,
+      "productId": 5,
+      "quantity": 1,
+      "unitPrice": 2500,
+      "costPriceAtSale": 2400
+    },
+    {
+      "id": 8,
+      "invoiceId": 6,
+      "productId": 7,
+      "quantity": 1,
+      "unitPrice": 40,
+      "costPriceAtSale": 30
+    }
+  ],
+  "expenses": [
+    {
+      "id": 1,
+      "title": "Shop Rent June 2026",
+      "category": "Rent",
+      "amount": 8000,
+      "date": "2026-06-01"
+    },
+    {
+      "id": 2,
+      "title": "Electricity Bill",
+      "category": "Utility",
+      "amount": 2450,
+      "date": "2026-06-10"
+    },
+    {
+      "id": 3,
+      "title": "Evening Snacks & Tea",
+      "category": "Tea-Snacks",
+      "amount": 350,
+      "date": "2026-06-15"
+    }
+  ],
+  "users": [
+    {
+      "id": 1,
+      "username": "owner",
+      "passwordHash": "owner123",
+      "role": "OWNER",
+      "name": "Al-Haj Rafiqul Islam"
+    },
+    {
+      "id": 2,
+      "username": "staff",
+      "passwordHash": "staff123",
+      "role": "STAFF",
+      "name": "Md. Karim"
+    }
+  ],
+  "parties": [
+    {
+      "id": 1,
+      "name": "Polycab Distributors Ltd.",
+      "partyType": "SUPPLIER",
+      "phone": "01711122233",
+      "address": "Nawabpur, Dhaka",
+      "currentBalance": -2200
+    },
+    {
+      "id": 2,
+      "name": "Kabir Rahman",
+      "partyType": "CUSTOMER",
+      "phone": "01822233344",
+      "address": "Mirpur-10, Dhaka",
+      "currentBalance": 1800
+    },
+    {
+      "id": 3,
+      "name": "Mizanur Rahman",
+      "partyType": "CUSTOMER",
+      "phone": "01933344455",
+      "address": "Dhanmondi, Dhaka",
+      "currentBalance": 0
+    },
+    {
+      "id": 4,
+      "name": "Ariful Islam",
+      "partyType": "SUPPLIER",
+      "phone": null,
+      "address": null,
+      "currentBalance": 0
+    }
+  ],
+  "returns": [],
+  "auditLogs": [
+    {
+      "id": 1,
+      "username": "system",
+      "action": "SYSTEM_INIT",
+      "details": "Database initialized successfully",
+      "timestamp": "2026-06-21T10:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "username": "owner",
+      "action": "USER_LOGIN",
+      "details": "User logged in from IP (Demo)",
+      "timestamp": "2026-06-21T15:48:04.997Z"
+    },
+    {
+      "id": 3,
+      "username": "owner",
+      "action": "INVOICE_CREATED",
+      "details": "Saved PURCHASE invoice 002 for party \"Ariful Islam\". Total: ৳24300",
+      "timestamp": "2026-06-21T16:00:10.932Z"
+    },
+    {
+      "id": 4,
+      "username": "owner",
+      "action": "INVOICE_CREATED",
+      "details": "Saved SALES invoice 003 for party \"Ariful Islam\". Total: ৳2540",
+      "timestamp": "2026-06-21T16:00:56.629Z"
+    },
+    {
+      "id": 5,
+      "username": "owner",
+      "action": "USER_LOGOUT",
+      "details": "User owner logged out",
+      "timestamp": "2026-06-21T16:13:14.821Z"
+    },
+    {
+      "id": 6,
+      "username": "owner",
+      "action": "USER_LOGIN",
+      "details": "User logged in from IP (Demo)",
+      "timestamp": "2026-06-21T16:13:48.740Z"
+    },
+    {
+      "id": 7,
+      "username": "owner",
+      "action": "USER_LOGOUT",
+      "details": "User owner logged out",
+      "timestamp": "2026-06-21T16:54:06.977Z"
+    },
+    {
+      "id": 8,
+      "username": "staff",
+      "action": "USER_LOGIN",
+      "details": "User logged in from IP (Demo)",
+      "timestamp": "2026-06-21T16:54:13.644Z"
+    },
+    {
+      "id": 9,
+      "username": "staff",
+      "action": "USER_LOGOUT",
+      "details": "User staff logged out",
+      "timestamp": "2026-06-21T16:56:34.734Z"
+    },
+    {
+      "id": 10,
+      "username": "owner",
+      "action": "USER_LOGIN",
+      "details": "User logged in from IP (Demo)",
+      "timestamp": "2026-06-21T16:56:43.473Z"
+    }
+  ]
+}

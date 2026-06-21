@@ -2056,5 +2056,60 @@ export async function resetPasswordAction(targetUsername: string, newPasswordHas
   }
 }
 
+// 23. UPDATE USER PROFILE ACTION (Owner Only)
+export async function updateUserAction(targetUsername: string, updatedData: { name: string }) {
+  const currentUser = await getCurrentUserAction();
+  if (!currentUser || currentUser.role !== 'OWNER') {
+    throw new Error('Unauthorized access');
+  }
+
+  const usernameLower = targetUsername.trim().toLowerCase();
+  const nameTrimmed = updatedData.name.trim();
+  if (!nameTrimmed) {
+    throw new Error('Name cannot be empty');
+  }
+
+  if (isDemoMode) {
+    const data = readLocalDb();
+    const userIndex = data.users.findIndex(u => u.username.toLowerCase() === usernameLower);
+    if (userIndex === -1) {
+      throw new Error('User not found');
+    }
+
+    const oldName = data.users[userIndex].name;
+    data.users[userIndex].name = nameTrimmed;
+    writeLocalDb(data);
+
+    await logAuditAction('USER_PROFILE_UPDATED', `Updated name of user "${usernameLower}" from "${oldName}" to "${nameTrimmed}"`);
+    revalidatePath('/');
+    return { success: true };
+  }
+
+  // Neon Postgres Mode
+  try {
+    const [existing] = await db!
+      .select()
+      .from(users)
+      .where(eq(users.username, usernameLower));
+    
+    if (!existing) {
+      throw new Error('User not found');
+    }
+
+    await db!
+      .update(users)
+      .set({ name: nameTrimmed })
+      .where(eq(users.username, usernameLower));
+
+    await logAuditAction('USER_PROFILE_UPDATED', `Updated name of user "${usernameLower}" from "${existing.name}" to "${nameTrimmed}"`);
+    revalidatePath('/');
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error updating user profile in DB:', err);
+    throw new Error(err.message || 'Failed to update user profile');
+  }
+}
+
+
 
 

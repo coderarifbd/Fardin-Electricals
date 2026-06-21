@@ -2,14 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/lib/context/LanguageContext';
-import { getUsersAction, createUserAction, resetPasswordAction } from '@/lib/actions';
+import { getUsersAction, createUserAction, resetPasswordAction, updateUserAction } from '@/lib/actions';
 import { 
   Users, 
   UserPlus, 
   Shield, 
   Key, 
   User,
-  Plus
+  Plus,
+  Edit2
 } from 'lucide-react';
 
 interface UserItem {
@@ -36,6 +37,11 @@ export default function UsersPage() {
   const [newPassword, setNewPassword] = useState('');
   const [resetSubmitting, setResetSubmitting] = useState(false);
 
+  // Edit Profile Name State
+  const [editingUser, setEditingUser] = useState<UserItem | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
   const fetchUsers = async () => {
     setLoading(true);
     try {
@@ -56,6 +62,40 @@ export default function UsersPage() {
   const handleOpenResetModal = (user: UserItem) => {
     setResettingUser(user);
     setNewPassword('');
+  };
+
+  const handleOpenEditModal = (user: UserItem) => {
+    setEditingUser(user);
+    setEditName(user.name);
+  };
+
+  const handleUpdateName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    if (!editName.trim()) {
+      toast(language === 'en' ? 'Name cannot be empty' : 'নাম খালি হতে পারে না', 'error');
+      return;
+    }
+
+    setEditSubmitting(true);
+    try {
+      const res = await updateUserAction(editingUser.username, { name: editName });
+      if (res.success) {
+        toast(
+          language === 'en'
+            ? `Successfully updated name for "${editingUser.username}"!`
+            : `সফলভাবে "${editingUser.username}" এর নাম পরিবর্তন করা হয়েছে!`,
+          'success'
+        );
+        setEditingUser(null);
+        setEditName('');
+        fetchUsers();
+      }
+    } catch (err: any) {
+      toast(err.message || 'Failed to update name', 'error');
+    } finally {
+      setEditSubmitting(false);
+    }
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -178,6 +218,15 @@ export default function UsersPage() {
                       }`}>
                         {user.role === 'OWNER' ? (language === 'en' ? 'Owner' : 'মালিক') : (language === 'en' ? 'Staff' : 'স্টাফ')}
                       </span>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditModal(user)}
+                        title={language === 'en' ? 'Edit Profile' : 'তথ্য সংশোধন'}
+                        className="p-1.5 rounded-lg border border-neutral-800 hover:border-amber-500/50 bg-neutral-950 hover:bg-amber-500/10 text-neutral-400 hover:text-amber-500 transition-all cursor-pointer"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
 
                       <button
                         type="button"
@@ -328,6 +377,64 @@ export default function UsersPage() {
                   {resetSubmitting 
                     ? (language === 'en' ? 'Saving...' : 'রিসেট হচ্ছে...') 
                     : (language === 'en' ? 'Reset Password' : 'রিসেট করুন')
+                  }
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Profile Name Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border border-neutral-800 bg-neutral-950 p-6 shadow-2xl relative overflow-hidden space-y-4">
+            <div className="absolute right-0 top-0 h-24 w-24 bg-gradient-to-br from-amber-500/10 to-transparent blur-xl pointer-events-none" />
+            
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-200 flex items-center gap-1.5">
+                <Edit2 className="h-4.5 w-4.5 text-amber-500" />
+                {language === 'en' ? 'Edit User Profile' : 'ব্যবহারকারীর তথ্য সংশোধন'}
+              </h2>
+              <p className="text-[11px] text-neutral-400 mt-1">
+                {language === 'en' 
+                  ? `Update full name for @${editingUser.username}` 
+                  : `@${editingUser.username} এর পূর্ণ নাম পরিবর্তন করুন`
+                }
+              </p>
+            </div>
+
+            <form onSubmit={handleUpdateName} className="space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 pl-1 block">
+                  {language === 'en' ? 'Full Name' : 'পূর্ণ নাম'}
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Al-Haj Rafiqul Islam"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full rounded-xl border border-neutral-800 bg-neutral-900 p-3 text-sm text-neutral-200 outline-none focus:border-amber-500 transition-colors"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="px-4 py-2.5 rounded-xl border border-neutral-800 hover:bg-neutral-900 text-xs font-semibold text-neutral-400 transition-colors cursor-pointer select-none"
+                >
+                  {language === 'en' ? 'Cancel' : 'বাতিল'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSubmitting}
+                  className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-xs font-bold text-black transition-colors disabled:opacity-50 cursor-pointer select-none"
+                >
+                  {editSubmitting 
+                    ? (language === 'en' ? 'Saving...' : 'সংরক্ষণ হচ্ছে...') 
+                    : (language === 'en' ? 'Save Changes' : 'পরিবর্তন সংরক্ষণ করুন')
                   }
                 </button>
               </div>

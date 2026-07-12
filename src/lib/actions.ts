@@ -1594,7 +1594,7 @@ export async function addProductAction(formData: {
     if (error?.code === '23505') {
       return { success: false, error: 'A product with this name already exists.' };
     }
-    return { success: false, error: 'Failed to add product. Please try again.' };
+    return { success: false, error: error.message || 'Failed to add product. Please try again.' };
   }
 }
 

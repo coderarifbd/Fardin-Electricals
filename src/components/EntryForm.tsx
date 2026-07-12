@@ -306,10 +306,12 @@ export default function EntryForm() {
       setRows(prev => prev.map((r, idx) => {
         if (idx === rowIndex) {
           const hasSuggestions = results.length > 0;
+          const isFocused = typeof document !== 'undefined' && document.activeElement?.id === `cell-${rowIndex}-product`;
+          const shouldShow = invoiceType === 'PURCHASE' ? true : hasSuggestions;
           return {
             ...r,
             suggestions: results,
-            showSuggestions: invoiceType === 'PURCHASE' ? true : hasSuggestions,
+            showSuggestions: isFocused && shouldShow,
             activeSuggestionIndex: 0
           };
         }

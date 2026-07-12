@@ -1,15 +1,6 @@
 {
   "products": [
     {
-      "id": 1,
-      "name": "LED Bulb 12W Havells",
-      "category": "Lighting",
-      "currentStock": 43,
-      "minStockAlert": 15,
-      "movingAverageCost": 120,
-      "barcode": "8901234567891"
-    },
-    {
       "id": 2,
       "name": "Polycab Wire 1.5 sqmm (90m)",
       "category": "Cables",

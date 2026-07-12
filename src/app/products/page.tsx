@@ -30,7 +30,8 @@ import {
   AlertCircle,
   ImagePlus,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Sliders
 } from 'lucide-react';
 
 interface Variant {
@@ -42,6 +43,7 @@ interface Variant {
   movingAverageCost?: number;
   barcode?: string | null;
   imageUrl?: string | null;
+  attributes?: Record<string, string> | null;
 }
 
 interface Product {
@@ -100,6 +102,12 @@ export default function ProductsPage() {
   const [tempVariantMinAlert, setTempVariantMinAlert] = useState(0);
   const [tempVariantImageUrl, setTempVariantImageUrl] = useState<string | null>(null);
   const [mainProductImageUrl, setMainProductImageUrl] = useState<string | null>(null);
+
+  // Matrix Configuration inside Add Modal
+  const [variantTab, setVariantTab] = useState<'MANUAL' | 'MATRIX'>('MANUAL');
+  const [matrixGroups, setMatrixGroups] = useState<{ name: string; values: string[] }[]>([]);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupValues, setNewGroupValues] = useState('');
 
   // Edit Product Modal
   const [showEditModal, setShowEditModal] = useState(false);
@@ -170,7 +178,8 @@ export default function ProductsPage() {
         name: tempVariantName.trim(),
         barcode: tempVariantBarcode.trim() || null,
         minStockAlert: tempVariantMinAlert,
-        imageUrl: tempVariantImageUrl
+        imageUrl: tempVariantImageUrl,
+        attributes: null
       }
     ]);
     setTempVariantName('');
@@ -182,6 +191,95 @@ export default function ProductsPage() {
   // Remove Variant helper in Add Modal
   const handleRemoveVariantItem = (idx: number) => {
     setAddVariants(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  // Matrix Groups Handlers
+  const handleAddMatrixGroup = () => {
+    if (!newGroupName.trim() || !newGroupValues.trim()) {
+      addToast('error', language === 'en' ? 'Group name and values are required.' : 'গ্রুপের নাম এবং ভ্যালু প্রয়োজন।');
+      return;
+    }
+    
+    const parsedValues = newGroupValues
+      .split(',')
+      .map(v => v.trim())
+      .filter(v => v !== '');
+      
+    if (parsedValues.length === 0) {
+      addToast('error', language === 'en' ? 'Please enter valid comma-separated values.' : 'অনুগ্রহ করে কমা দিয়ে আলাদা করা ভ্যালু লিখুন।');
+      return;
+    }
+    
+    if (matrixGroups.some(g => g.name.toLowerCase() === newGroupName.trim().toLowerCase())) {
+      addToast('error', language === 'en' ? 'Group already exists.' : 'এই গ্রুপটি ইতিমধ্যে রয়েছে।');
+      return;
+    }
+    
+    setMatrixGroups(prev => [
+      ...prev,
+      {
+        name: newGroupName.trim(),
+        values: parsedValues
+      }
+    ]);
+    
+    setNewGroupName('');
+    setNewGroupValues('');
+  };
+
+  const handleRemoveMatrixGroup = (idx: number) => {
+    setMatrixGroups(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  // Cartesian product calculator
+  const generateCartesianProduct = (groups: { name: string; values: string[] }[]) => {
+    if (groups.length === 0) return [];
+    
+    let result: Record<string, string>[] = groups[0].values.map(val => ({
+      [groups[0].name]: val
+    }));
+    
+    for (let i = 1; i < groups.length; i++) {
+      const currentGroup = groups[i];
+      const temp: Record<string, string>[] = [];
+      for (const res of result) {
+        for (const val of currentGroup.values) {
+          temp.push({
+            ...res,
+            [currentGroup.name]: val
+          });
+        }
+      }
+      result = temp;
+    }
+    return result;
+  };
+
+  const handleGenerateMatrix = () => {
+    if (matrixGroups.length === 0) {
+      addToast('error', language === 'en' ? 'Please add at least one attribute group first.' : 'অনুগ্রহ করে প্রথমে অন্তত একটি অ্যাট্রিবিউট গ্রুপ যোগ করুন।');
+      return;
+    }
+    
+    const combinations = generateCartesianProduct(matrixGroups);
+    const newVariantsList: Variant[] = combinations.map(combo => {
+      const name = Object.values(combo).join(' - ');
+      return {
+        name,
+        minStockAlert: 0,
+        barcode: null,
+        imageUrl: null,
+        attributes: combo
+      };
+    });
+    
+    setAddVariants(prev => {
+      const filtered = newVariantsList.filter(nv => !prev.some(pv => pv.name.toLowerCase() === nv.name.toLowerCase()));
+      return [...prev, ...filtered];
+    });
+    
+    setMatrixGroups([]);
+    addToast('success', language === 'en' ? `Generated ${combinations.length} combinations!` : `${combinations.length}টি কম্বিনেশন জেনারেট করা হয়েছে!`);
   };
 
   // Save new Product
@@ -271,7 +369,8 @@ export default function ProductsPage() {
     const res = await addVariantAction({
       productId: editProduct.id,
       name: name.trim(),
-      barcode: barcode?.trim() || null
+      barcode: barcode?.trim() || null,
+      attributes: null
     });
 
     if (res.success) {
@@ -339,9 +438,9 @@ export default function ProductsPage() {
   });
 
   return (
-    <div className="space-y-6 font-sans">
+    <div className="space-y-6 font-sans text-neutral-100">
       
-      {/* Hidden file input for main product creation */}
+      {/* Hidden file inputs */}
       <input
         ref={mainFileInputRef}
         type="file"
@@ -356,7 +455,6 @@ export default function ProductsPage() {
         }}
       />
 
-      {/* Hidden file input for temp variant creation */}
       <input
         ref={variantFileInputRef}
         type="file"
@@ -371,7 +469,6 @@ export default function ProductsPage() {
         }}
       />
 
-      {/* Hidden file input for editing page main image */}
       <input
         ref={editFileInputRef}
         type="file"
@@ -393,8 +490,8 @@ export default function ProductsPage() {
             key={toast.id}
             className={`flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-2xl text-xs font-semibold pointer-events-auto border animate-slide-in ${
               toast.type === 'success'
-                ? 'bg-emerald-950 border-emerald-800 text-emerald-355'
-                : 'bg-rose-955 border-rose-800 text-rose-300'
+                ? 'bg-emerald-950 border-emerald-800 text-emerald-300'
+                : 'bg-rose-950 border-rose-800 text-rose-300'
             }`}
           >
             {toast.type === 'success' ? <CheckCircle className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
@@ -412,8 +509,8 @@ export default function ProductsPage() {
           </h1>
           <p className="text-xs text-neutral-500 mt-1">
             {language === 'en' 
-              ? 'Manage products and their variations. Initial stocks are registered here and updated dynamically.' 
-              : 'পণ্য ও তাদের ভেরিয়েশনসমূহ পরিচালনা করুন। নতুন পণ্য যোগ করুন ও স্টক রেকর্ড ট্র্যাক করুন।'}
+              ? 'Manage products, attributes, and combinations. Initial stocks are registered here and updated dynamically.' 
+              : 'পণ্য, এট্রিবিউট এবং তাদের কম্বিনেশনসমূহ পরিচালনা করুন। নতুন পণ্য যোগ করুন ও স্টক রেকর্ড ট্র্যাক করুন।'}
           </p>
         </div>
         <button
@@ -421,6 +518,7 @@ export default function ProductsPage() {
             setAddForm(FORM_DEFAULTS);
             setAddVariants([]);
             setMainProductImageUrl(null);
+            setMatrixGroups([]);
             setFormError(null);
             setShowAddModal(true);
           }}
@@ -505,7 +603,7 @@ export default function ProductsPage() {
               >
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-[9px] uppercase font-bold tracking-widest text-neutral-455 bg-neutral-950 px-2 py-0.5 rounded border border-neutral-850">
+                    <span className="text-[9px] uppercase font-bold tracking-widest text-neutral-450 bg-neutral-950 px-2 py-0.5 rounded border border-neutral-850">
                       {p.category}
                     </span>
                     <button
@@ -595,8 +693,15 @@ export default function ProductsPage() {
                         {p.variants.map((v) => (
                           <div key={v.id} className="flex justify-between items-center text-[10px] font-mono bg-neutral-950/60 p-2 rounded-lg border border-neutral-900/60">
                             <div>
-                              <div className="font-bold text-neutral-300">{v.name}</div>
-                              {v.barcode && <div className="text-[8px] text-neutral-600">BC: {v.barcode}</div>}
+                              <div className="font-bold text-neutral-300 flex items-center gap-1.5 flex-wrap">
+                                {v.name}
+                                {v.attributes && Object.entries(v.attributes).map(([key, val]) => (
+                                  <span key={key} className="text-[7.5px] font-extrabold bg-neutral-900 border border-neutral-800 text-neutral-450 px-1 py-0.5 rounded tracking-wide">
+                                    {key}: {val}
+                                  </span>
+                                ))}
+                              </div>
+                              {v.barcode && <div className="text-[8px] text-neutral-600 mt-0.5">BC: {v.barcode}</div>}
                             </div>
                             <div className="text-right">
                               <div className="font-bold text-emerald-500">{v.currentStock} pcs</div>
@@ -645,7 +750,7 @@ export default function ProductsPage() {
       ) : (
         /* LIST VIEW */
         <div className="rounded-2xl border border-neutral-850 bg-neutral-900/10 p-6 shadow-2xl backdrop-blur-md overflow-x-auto">
-          <table className="w-full border-collapse text-left text-xs">
+          <table className="w-full border-collapse text-left text-xs text-neutral-300">
             <thead>
               <tr className="border-b border-neutral-800 bg-neutral-950/40 font-semibold text-neutral-400">
                 <th className="p-3 w-10 text-center">#</th>
@@ -836,65 +941,170 @@ export default function ProductsPage() {
                 </div>
               )}
 
-              {/* Variant Inline Adder */}
-              <div className="border border-neutral-850 rounded-xl p-4 bg-neutral-950/40 space-y-3">
-                <span className="text-xs font-bold text-neutral-350 flex items-center gap-1">
-                  <Layers className="h-3.5 w-3.5 text-amber-500" />
-                  {language === 'en' ? 'Configure Variations (Optional)' : 'ভেরিয়েশন যোগ করুন (ঐচ্ছিক)'}
+              {/* Variant Section */}
+              <div className="border border-neutral-850 rounded-xl p-4 bg-neutral-950/40 space-y-4">
+                <span className="text-xs font-bold text-neutral-300 flex items-center gap-1.5">
+                  <Sliders className="h-4 w-4 text-amber-500" />
+                  {language === 'en' ? 'Configure Variations (Optional)' : 'ভেরিয়েশন অপশন যোগ করুন (ঐচ্ছিক)'}
                 </span>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-neutral-500 uppercase">
-                      {language === 'en' ? 'Variation Name' : 'ভেরিয়েশনের নাম'}
-                    </label>
-                    <input
-                      type="text"
-                      value={tempVariantName}
-                      onChange={e => setTempVariantName(e.target.value)}
-                      placeholder="e.g. 20W White, 22W CoolDay"
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-855 bg-neutral-900 text-xs text-neutral-200 outline-none focus:border-amber-500 font-semibold"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-neutral-500 uppercase">
-                      {language === 'en' ? 'Barcode' : 'বারকোড'}
-                    </label>
-                    <input
-                      type="text"
-                      value={tempVariantBarcode}
-                      onChange={e => setTempVariantBarcode(e.target.value)}
-                      placeholder="Barcode (optional)"
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-855 bg-neutral-900 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between gap-4 pt-1">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => variantFileInputRef.current?.click()}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-800 hover:border-neutral-700 bg-neutral-955 text-[10px] text-neutral-450 transition-all font-semibold"
-                    >
-                      <ImagePlus className="h-3.5 w-3.5" />
-                      {tempVariantImageUrl ? (language === 'en' ? 'Uploaded ✓' : 'আপলোড হয়েছে ✓') : (language === 'en' ? 'Upload Image' : 'ছবি যোগ করুন')}
-                    </button>
-                    {tempVariantImageUrl && (
-                      <button type="button" onClick={() => setTempVariantImageUrl(null)} className="text-[10px] text-rose-500 hover:underline">
-                        {language === 'en' ? 'Clear' : 'মুছে ফেলুন'}
-                      </button>
-                    )}
-                  </div>
+                {/* Tab selector */}
+                <div className="flex border-b border-neutral-900 select-none">
                   <button
                     type="button"
-                    onClick={handleAddVariantItem}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-[10px] font-bold transition-all"
+                    onClick={() => setVariantTab('MANUAL')}
+                    className={`flex-1 pb-2 text-[10px] font-bold text-center border-b-2 transition-all uppercase tracking-wider ${
+                      variantTab === 'MANUAL' 
+                        ? 'border-amber-500 text-amber-500' 
+                        : 'border-transparent text-neutral-500 hover:text-neutral-350'
+                    }`}
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    {language === 'en' ? 'Add Variant' : 'ভেরিয়েশন যোগ করুন'}
+                    {language === 'en' ? 'Manual Addition' : 'ম্যানুয়াল মোড'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVariantTab('MATRIX')}
+                    className={`flex-1 pb-2 text-[10px] font-bold text-center border-b-2 transition-all uppercase tracking-wider ${
+                      variantTab === 'MATRIX' 
+                        ? 'border-amber-500 text-amber-500' 
+                        : 'border-transparent text-neutral-500 hover:text-neutral-350'
+                    }`}
+                  >
+                    {language === 'en' ? 'Attribute Matrix (Size, Color)' : 'অ্যাট্রিবিউট ম্যাট্রিক্স মোড'}
                   </button>
                 </div>
+
+                {/* Tab Contents: MANUAL MODE */}
+                {variantTab === 'MANUAL' && (
+                  <div className="space-y-3 pt-1">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-neutral-500 uppercase">
+                          {language === 'en' ? 'Variation Name' : 'ভেরিয়েশনের নাম'}
+                        </label>
+                        <input
+                          type="text"
+                          value={tempVariantName}
+                          onChange={e => setTempVariantName(e.target.value)}
+                          placeholder="e.g. 20W White, 22W CoolDay"
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-855 bg-neutral-900 text-xs text-neutral-200 outline-none focus:border-amber-500 font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-neutral-500 uppercase">
+                          {language === 'en' ? 'Barcode' : 'বারকোড'}
+                        </label>
+                        <input
+                          type="text"
+                          value={tempVariantBarcode}
+                          onChange={e => setTempVariantBarcode(e.target.value)}
+                          placeholder="Barcode (optional)"
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-855 bg-neutral-900 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 pt-1">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => variantFileInputRef.current?.click()}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-800 hover:border-neutral-700 bg-neutral-955 text-[10px] text-neutral-450 transition-all font-semibold"
+                        >
+                          <ImagePlus className="h-3.5 w-3.5" />
+                          {tempVariantImageUrl ? (language === 'en' ? 'Uploaded ✓' : 'আপলোড হয়েছে ✓') : (language === 'en' ? 'Upload Image' : 'ছবি যোগ করুন')}
+                        </button>
+                        {tempVariantImageUrl && (
+                          <button type="button" onClick={() => setTempVariantImageUrl(null)} className="text-[10px] text-rose-500 hover:underline">
+                            {language === 'en' ? 'Clear' : 'মুছে ফেলুন'}
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddVariantItem}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-[10px] font-bold transition-all"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        {language === 'en' ? 'Add Variant' : 'ভেরিয়েশন যোগ করুন'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab Contents: MATRIX GENERATOR MODE */}
+                {variantTab === 'MATRIX' && (
+                  <div className="space-y-3 pt-1">
+                    <div className="p-3 rounded-lg border border-neutral-900 bg-neutral-950/40 space-y-3">
+                      <span className="text-[10.5px] font-bold text-neutral-450 uppercase tracking-wide">
+                        {language === 'en' ? 'Add Attribute Group' : 'অ্যাট্রিবিউট গ্রুপ যোগ করুন'}
+                      </span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-semibold text-neutral-500 uppercase">Group (e.g. Size, Color)</label>
+                          <input
+                            type="text"
+                            value={newGroupName}
+                            onChange={e => setNewGroupName(e.target.value)}
+                            placeholder="e.g. Size"
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-855 bg-neutral-900 text-xs text-neutral-202 outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-semibold text-neutral-500 uppercase">Values (Comma-separated)</label>
+                          <input
+                            type="text"
+                            value={newGroupValues}
+                            onChange={e => setNewGroupValues(e.target.value)}
+                            placeholder="e.g. Red, Black, Yellow"
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-855 bg-neutral-900 text-xs text-neutral-202 outline-none focus:border-amber-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end pt-1">
+                        <button
+                          type="button"
+                          onClick={handleAddMatrixGroup}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-[10px] text-neutral-300 font-bold transition-all"
+                        >
+                          <Plus className="h-3 w-3" />
+                          {language === 'en' ? 'Add Group' : 'গ্রুপ যোগ করুন'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Active Matrix Groups */}
+                    {matrixGroups.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-[9.5px] uppercase font-bold text-neutral-500 tracking-wider">Configure Groups:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {matrixGroups.map((group, idx) => (
+                            <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-neutral-950 border border-neutral-900 text-[10.5px]">
+                              <span className="font-bold text-neutral-300">{group.name}:</span>
+                              <span className="text-neutral-450 font-mono text-[9.5px]">{group.values.join(', ')}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveMatrixGroup(idx)}
+                                className="p-0.5 text-rose-500 hover:bg-rose-955/20 rounded transition-all ml-1.5"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex justify-end pt-2 border-t border-neutral-900">
+                          <button
+                            type="button"
+                            onClick={handleGenerateMatrix}
+                            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-black transition-all shadow-md"
+                          >
+                            {language === 'en' ? 'Generate Combinations' : 'কম্বিনেশন জেনারেট করুন'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Added Variants Preview list */}
                 {addVariants.length > 0 && (
@@ -911,6 +1121,15 @@ export default function ProductsPage() {
                             )}
                             <div>
                               <span className="font-bold text-neutral-200">{v.name}</span>
+                              {v.attributes && (
+                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                  {Object.entries(v.attributes).map(([key, val]) => (
+                                    <span key={key} className="text-[7.5px] font-semibold bg-neutral-900 border border-neutral-800 text-neutral-500 px-1 py-0.2 rounded">
+                                      {key}: {val}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                               {v.barcode && <span className="text-[9px] text-neutral-600 ml-2 font-mono">BC: {v.barcode}</span>}
                             </div>
                           </div>
@@ -939,7 +1158,7 @@ export default function ProductsPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-neutral-800 text-xs font-semibold text-neutral-450 hover:text-neutral-250 transition-colors"
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-neutral-800 text-xs font-semibold text-neutral-450 hover:text-neutral-255 transition-colors"
                 >
                   {language === 'en' ? 'Cancel' : 'বাতিল'}
                 </button>
@@ -1088,7 +1307,7 @@ export default function ProductsPage() {
                       const isDeletingThis = deletingVariantId === v.id;
 
                       return (
-                        <div key={v.id} className="p-3 rounded-xl border border-neutral-900 bg-neutral-950/65 text-xs transition-all">
+                        <div key={v.id} className="p-3 rounded-xl border border-neutral-900 bg-neutral-955 text-xs transition-all">
                           {isEditingThis ? (
                             <div className="space-y-2.5">
                               <div className="grid grid-cols-2 gap-2">
@@ -1144,7 +1363,7 @@ export default function ProductsPage() {
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteVariantItemConfirm(v.id!)}
-                                  className="px-2.5 py-1 rounded bg-rose-900 hover:bg-rose-800 text-rose-105 text-[10px] font-bold"
+                                  className="px-2.5 py-1 rounded bg-rose-900 hover:bg-rose-800 text-rose-100 text-[10px] font-bold"
                                 >
                                   {language === 'en' ? 'Yes, Delete' : 'হ্যাঁ'}
                                 </button>
@@ -1153,7 +1372,14 @@ export default function ProductsPage() {
                           ) : (
                             <div className="flex items-center justify-between">
                               <div>
-                                <div className="font-bold text-neutral-200">{v.name}</div>
+                                <div className="font-bold text-neutral-200 flex items-center gap-1.5 flex-wrap">
+                                  {v.name}
+                                  {v.attributes && Object.entries(v.attributes).map(([key, val]) => (
+                                    <span key={key} className="text-[7.5px] font-extrabold bg-neutral-900 border border-neutral-800 text-neutral-450 px-1 py-0.5 rounded tracking-wide">
+                                      {key}: {val}
+                                    </span>
+                                  ))}
+                                </div>
                                 <div className="text-[10px] text-neutral-500 flex gap-2.5 mt-0.5 font-mono">
                                   <span>Stock: {v.currentStock ?? 0}</span>
                                   <span>Avg Cost: ৳{v.movingAverageCost?.toFixed(2) ?? '0.00'}</span>
@@ -1206,7 +1432,7 @@ export default function ProductsPage() {
                 <button
                   type="button"
                   onClick={() => handleDeleteProduct(editProduct.id)}
-                  className="px-4 py-2.5 rounded-xl border border-rose-900 bg-rose-955/20 text-xs font-semibold text-rose-455 hover:bg-rose-900/30 transition-colors"
+                  className="px-4 py-2.5 rounded-xl border border-rose-900 bg-rose-950/20 text-xs font-semibold text-rose-455 hover:bg-rose-900/30 transition-colors"
                   title="Delete Product completely"
                 >
                   <Trash2 className="h-4 w-4 text-rose-500" />

@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, integer, decimal, date, index, text, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, integer, decimal, date, index, text, timestamp, json } from 'drizzle-orm/pg-core';
 
 export const products = pgTable('products', {
   id: serial('id').primaryKey(),
@@ -24,6 +24,7 @@ export const productVariants = pgTable('product_variants', {
   movingAverageCost: decimal('moving_average_cost', { precision: 12, scale: 2 }).default('0.00').notNull(),
   barcode: varchar('barcode', { length: 100 }),
   imageUrl: varchar('image_url', { length: 500 }),
+  attributes: json('attributes').$type<Record<string, string>>(),
 }, (table) => [
   index('variants_product_idx').on(table.productId),
 ]);

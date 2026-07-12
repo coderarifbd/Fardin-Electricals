@@ -23,6 +23,7 @@ export interface ProductVariant {
   movingAverageCost: number;
   barcode?: string | null;
   imageUrl?: string | null;
+  attributes?: Record<string, string> | null;
 }
 
 export interface Invoice {

@@ -857,7 +857,7 @@ export default function EntryForm() {
                           )}
 
                           {row.showSuggestions && (row.suggestions.length > 0 || invoiceType === 'PURCHASE') && (
-                            <div className="absolute left-3 right-3 top-12 z-50 max-h-56 overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-900 shadow-2xl p-1">
+                            <div className="absolute left-0 top-12 z-50 min-w-[280px] max-w-[340px] md:max-w-none md:left-3 md:right-3 md:w-auto max-h-56 overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-900 shadow-2xl p-1">
                               {row.suggestions.map((s, sIdx) => (
                                 <div
                                   key={s.id}

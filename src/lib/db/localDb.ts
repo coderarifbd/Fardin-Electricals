@@ -11,6 +11,18 @@ export interface Product {
   minStockAlert: number;
   movingAverageCost: number;
   barcode?: string | null;
+  imageUrl?: string | null;
+}
+
+export interface ProductVariant {
+  id: number;
+  productId: number;
+  name: string;
+  currentStock: number;
+  minStockAlert: number;
+  movingAverageCost: number;
+  barcode?: string | null;
+  imageUrl?: string | null;
 }
 
 export interface Invoice {
@@ -31,6 +43,7 @@ export interface InvoiceItem {
   id: number;
   invoiceId: number;
   productId: number;
+  variantId?: number | null;
   quantity: number;
   unitPrice: number;
   costPriceAtSale: number;
@@ -83,6 +96,7 @@ export interface AuditLog {
 
 export interface LocalDbData {
   products: Product[];
+  productVariants: ProductVariant[];
   invoices: Invoice[];
   invoiceItems: InvoiceItem[];
   expenses: Expense[];
@@ -94,12 +108,20 @@ export interface LocalDbData {
 
 const DEFAULT_DATA: LocalDbData = {
   products: [
-    { id: 1, name: 'LED Bulb 12W Havells', category: 'Lighting', currentStock: 45, minStockAlert: 15, movingAverageCost: 120.00, barcode: '8901234567891' },
-    { id: 2, name: 'Polycab Wire 1.5 sqmm (90m)', category: 'Cables', currentStock: 12, minStockAlert: 5, movingAverageCost: 1850.00, barcode: '8901234567892' },
-    { id: 3, name: 'Piano Switch 6A Anchor', category: 'Switches', currentStock: 150, minStockAlert: 50, movingAverageCost: 18.00, barcode: '8901234567893' },
+    { id: 1, name: 'LED Bulb Havells', category: 'Lighting', currentStock: 0, minStockAlert: 0, movingAverageCost: 0, barcode: null },
+    { id: 2, name: 'Polycab Wire', category: 'Cables', currentStock: 0, minStockAlert: 0, movingAverageCost: 0, barcode: null },
+    { id: 3, name: 'Piano Switch Anchor', category: 'Switches', currentStock: 150, minStockAlert: 50, movingAverageCost: 18.00, barcode: '8901234567893' },
     { id: 4, name: 'Socket 5-Pin Anchor', category: 'Switches', currentStock: 80, minStockAlert: 30, movingAverageCost: 35.00, barcode: '8901234567894' },
-    { id: 5, name: 'Orient Ceiling Fan 48 inch', category: 'Fans', currentStock: -2, minStockAlert: 4, movingAverageCost: 2400.00, barcode: '8901234567895' },
+    { id: 5, name: 'Orient Ceiling Fan', category: 'Fans', currentStock: 0, minStockAlert: 0, movingAverageCost: 0, barcode: null },
     { id: 6, name: 'PVC Electrical Tape Black', category: 'Accessories', currentStock: 0, minStockAlert: 10, movingAverageCost: 12.00, barcode: '8901234567896' },
+  ],
+  productVariants: [
+    { id: 1, productId: 1, name: '9W', currentStock: 45, minStockAlert: 15, movingAverageCost: 120.00, barcode: '8901234567891', imageUrl: null },
+    { id: 2, productId: 1, name: '12W', currentStock: 30, minStockAlert: 10, movingAverageCost: 150.00, barcode: null, imageUrl: null },
+    { id: 3, productId: 2, name: '1.5 sqmm (90m)', currentStock: 12, minStockAlert: 5, movingAverageCost: 1850.00, barcode: '8901234567892', imageUrl: null },
+    { id: 4, productId: 2, name: '2.5 sqmm (90m)', currentStock: 8, minStockAlert: 3, movingAverageCost: 2800.00, barcode: null, imageUrl: null },
+    { id: 5, productId: 5, name: '48 inch', currentStock: 5, minStockAlert: 2, movingAverageCost: 2400.00, barcode: '8901234567895', imageUrl: null },
+    { id: 6, productId: 5, name: '56 inch', currentStock: 3, minStockAlert: 2, movingAverageCost: 3200.00, barcode: null, imageUrl: null },
   ],
   invoices: [
     { id: 1, invoiceType: 'PURCHASE', manualInvoiceNo: 'P-901', invoiceDate: '2026-06-15', partyName: 'Polycab Distributors Ltd.', totalAmount: 22200.00, paidAmount: 20000.00, dueAmount: 2200.00, expectedPaymentDate: null, createdBy: 'owner', partyId: 1 },
@@ -107,9 +129,9 @@ const DEFAULT_DATA: LocalDbData = {
     { id: 3, invoiceType: 'SALES', manualInvoiceNo: 'S-452', invoiceDate: '2026-06-18', partyName: 'Mizanur Rahman', totalAmount: 1850.00, paidAmount: 1850.00, dueAmount: 0.00, expectedPaymentDate: null, createdBy: 'staff', partyId: 3 }
   ],
   invoiceItems: [
-    { id: 1, invoiceId: 1, productId: 2, quantity: 12, unitPrice: 1850.00, costPriceAtSale: 0.00 },
-    { id: 2, invoiceId: 2, productId: 5, quantity: 2, unitPrice: 2400.00, costPriceAtSale: 2400.00 },
-    { id: 3, invoiceId: 3, productId: 2, quantity: 1, unitPrice: 1850.00, costPriceAtSale: 1850.00 }
+    { id: 1, invoiceId: 1, productId: 2, variantId: 3, quantity: 12, unitPrice: 1850.00, costPriceAtSale: 0.00 },
+    { id: 2, invoiceId: 2, productId: 5, variantId: 5, quantity: 2, unitPrice: 2400.00, costPriceAtSale: 2400.00 },
+    { id: 3, invoiceId: 3, productId: 2, variantId: 3, quantity: 1, unitPrice: 1850.00, costPriceAtSale: 1850.00 }
   ],
   expenses: [
     { id: 1, title: 'Shop Rent June 2026', category: 'Rent', amount: 8000.00, date: '2026-06-01', createdBy: 'owner' },
@@ -146,6 +168,7 @@ export function readLocalDb(): LocalDbData {
     if (!parsed.parties) { parsed.parties = DEFAULT_DATA.parties; dirty = true; }
     if (!parsed.returns) { parsed.returns = DEFAULT_DATA.returns; dirty = true; }
     if (!parsed.auditLogs) { parsed.auditLogs = DEFAULT_DATA.auditLogs; dirty = true; }
+    if (!parsed.productVariants) { parsed.productVariants = []; dirty = true; }
     
     // Ensure products have barcodes
     parsed.products.forEach((p: any) => {

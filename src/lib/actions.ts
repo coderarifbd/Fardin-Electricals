@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db, isDemoMode } from './db';
-import { products, invoices, invoiceItems, expenses, users, parties, returns, auditLogs } from './db/schema';
+import { products, productVariants, invoices, invoiceItems, expenses, users, parties, returns, auditLogs } from './db/schema';
 import { readLocalDb, writeLocalDb } from './db/localDb';
 import { eq, like, and, gte, lte, desc, inArray, notInArray, sql } from 'drizzle-orm';
 import { cookies } from 'next/headers';
@@ -25,21 +25,18 @@ export async function searchProductsAction(query: string) {
     }
     const sliced = filteredProducts.slice(0, 15);
     return sliced.map(p => {
+      const variants = (data.productVariants || []).filter(v => v.productId === p.id);
       const priceHistory = data.invoiceItems
-        .filter(item => item.productId === p.id)
+        .filter(item => item.productId === p.id && !item.variantId)
         .map(item => {
           const inv = data.invoices.find(i => i.id === item.invoiceId);
-          return {
-            invoiceType: inv?.invoiceType,
-            date: inv?.invoiceDate || '',
-            price: item.unitPrice
-          };
+          return { invoiceType: inv?.invoiceType, date: inv?.invoiceDate || '', price: item.unitPrice };
         })
         .filter(item => item.invoiceType === 'PURCHASE')
         .sort((a, b) => b.date.localeCompare(a.date))
         .slice(0, 3)
         .map(h => ({ date: h.date, price: h.price }));
-      return { ...p, priceHistory };
+      return { ...p, hasVariants: variants.length > 0, variants, priceHistory };
     });
   }
 
@@ -52,35 +49,82 @@ export async function searchProductsAction(query: string) {
       .limit(15);
       
     const mapped = await Promise.all(results.map(async (r) => {
+      const variantRows = await db!
+        .select()
+        .from(productVariants)
+        .where(eq(productVariants.productId, r.id));
+
       const history = await db!
-        .select({
-          date: invoices.invoiceDate,
-          price: invoiceItems.unitPrice
-        })
+        .select({ date: invoices.invoiceDate, price: invoiceItems.unitPrice })
         .from(invoiceItems)
         .innerJoin(invoices, eq(invoiceItems.invoiceId, invoices.id))
-        .where(
-          and(
-            eq(invoiceItems.productId, r.id),
-            eq(invoices.invoiceType, 'PURCHASE')
-          )
-        )
+        .where(and(eq(invoiceItems.productId, r.id), eq(invoices.invoiceType, 'PURCHASE')))
         .orderBy(desc(invoices.invoiceDate))
         .limit(3);
+
+      const variants = variantRows.map(v => ({ ...v, movingAverageCost: parseDecimal(v.movingAverageCost) }));
 
       return {
         ...r,
         movingAverageCost: parseDecimal(r.movingAverageCost),
-        priceHistory: history.map(h => ({
-          date: h.date,
-          price: parseDecimal(h.price)
-        }))
+        hasVariants: variants.length > 0,
+        variants,
+        priceHistory: history.map(h => ({ date: h.date, price: parseDecimal(h.price) }))
       };
     }));
     return mapped;
   } catch (error) {
     console.error('Error searching products in DB:', error);
     return [];
+  }
+}
+
+// 1b. GET NEXT INVOICE NUMBER ACTION
+export async function getNextInvoiceNoAction(
+  invoiceType: 'SALES' | 'PURCHASE'
+): Promise<string> {
+  // Helper: given a string like "S-101", "P-205", "INV-999", "42"
+  // returns prefix ("S-", "P-", "INV-", "") and numeric part (101, 205, 999, 42)
+  function parseInvoiceNo(no: string): { prefix: string; num: number } | null {
+    const trimmed = no.trim();
+    // Match optional text prefix (letters, hyphens, dots, spaces) followed by a number at the end
+    const match = trimmed.match(/^(.*?)(\d+)$/);
+    if (!match) return null;
+    return { prefix: match[1], num: parseInt(match[2], 10) };
+  }
+
+  function increment(lastNo: string): string {
+    const parsed = parseInvoiceNo(lastNo);
+    if (!parsed) return lastNo; // can't parse, return as-is
+    const nextNum = parsed.num + 1;
+    // Preserve zero-padding if original had it (e.g. "001" â†’ "002")
+    const padLen = String(parsed.num).length;
+    const paddedNext = String(nextNum).padStart(padLen, '0');
+    return parsed.prefix + paddedNext;
+  }
+
+  if (isDemoMode) {
+    const data = readLocalDb();
+    const filtered = data.invoices
+      .filter((inv) => inv.invoiceType === invoiceType)
+      .sort((a, b) => b.id - a.id);
+    if (filtered.length === 0) return '';
+    return increment(filtered[0].manualInvoiceNo);
+  }
+
+  // Postgres Mode
+  try {
+    const results = await db!
+      .select({ manualInvoiceNo: invoices.manualInvoiceNo })
+      .from(invoices)
+      .where(eq(invoices.invoiceType, invoiceType))
+      .orderBy(desc(invoices.id))
+      .limit(1);
+    if (results.length === 0) return '';
+    return increment(results[0].manualInvoiceNo);
+  } catch (error) {
+    console.error('Error getting next invoice no:', error);
+    return '';
   }
 }
 
@@ -149,6 +193,7 @@ export async function saveInvoiceAction(
   },
   items: {
     productId: number;
+    variantId?: number | null;
     quantity: number;
     unitPrice: number;
   }[]
@@ -182,7 +227,6 @@ export async function saveInvoiceAction(
     if (invoiceData.invoiceType === 'SALES') {
       party.currentBalance = parseFloat((party.currentBalance + invoiceData.dueAmount).toFixed(2));
     } else {
-      // PURCHASE: bekeya increases payable (towards negative)
       party.currentBalance = parseFloat((party.currentBalance - invoiceData.dueAmount).toFixed(2));
     }
 
@@ -213,31 +257,56 @@ export async function saveInvoiceAction(
 
       let costPriceAtSale = 0;
 
-      if (invoiceData.invoiceType === 'PURCHASE') {
-        // Calculate new moving average cost
-        const currentStock = product.currentStock;
-        const currentAvgCost = product.movingAverageCost;
-        const purchaseQty = item.quantity;
-        const purchasePrice = item.unitPrice;
+      if (item.variantId) {
+        if (!data.productVariants) data.productVariants = [];
+        const variant = data.productVariants.find(v => v.id === item.variantId);
+        if (variant) {
+          if (invoiceData.invoiceType === 'PURCHASE') {
+            const currentStock = variant.currentStock;
+            const currentAvgCost = variant.movingAverageCost;
+            const purchaseQty = item.quantity;
+            const purchasePrice = item.unitPrice;
 
-        let newMovingAverageCost = purchasePrice;
-        if (currentStock > 0) {
-          newMovingAverageCost = ((currentStock * currentAvgCost) + (purchaseQty * purchasePrice)) / (currentStock + purchaseQty);
+            let newMovingAverageCost = purchasePrice;
+            if (currentStock > 0) {
+              newMovingAverageCost = ((currentStock * currentAvgCost) + (purchaseQty * purchasePrice)) / (currentStock + purchaseQty);
+            }
+            variant.movingAverageCost = parseFloat(newMovingAverageCost.toFixed(2));
+            variant.currentStock = currentStock + purchaseQty;
+            product.currentStock = product.currentStock + purchaseQty;
+            costPriceAtSale = purchasePrice;
+          } else {
+            variant.currentStock = variant.currentStock - item.quantity;
+            product.currentStock = product.currentStock - item.quantity;
+            costPriceAtSale = variant.movingAverageCost;
+          }
         }
-
-        product.movingAverageCost = parseFloat(newMovingAverageCost.toFixed(2));
-        product.currentStock = currentStock + purchaseQty;
-        costPriceAtSale = purchasePrice;
       } else {
-        // SALES
-        product.currentStock = product.currentStock - item.quantity;
-        costPriceAtSale = product.movingAverageCost;
+        if (invoiceData.invoiceType === 'PURCHASE') {
+          const currentStock = product.currentStock;
+          const currentAvgCost = product.movingAverageCost;
+          const purchaseQty = item.quantity;
+          const purchasePrice = item.unitPrice;
+
+          let newMovingAverageCost = purchasePrice;
+          if (currentStock > 0) {
+            newMovingAverageCost = ((currentStock * currentAvgCost) + (purchaseQty * purchasePrice)) / (currentStock + purchaseQty);
+          }
+
+          product.movingAverageCost = parseFloat(newMovingAverageCost.toFixed(2));
+          product.currentStock = currentStock + purchaseQty;
+          costPriceAtSale = purchasePrice;
+        } else {
+          product.currentStock = product.currentStock - item.quantity;
+          costPriceAtSale = product.movingAverageCost;
+        }
       }
 
       data.invoiceItems.push({
         id: itemIndex++,
         invoiceId: invoiceId,
         productId: item.productId,
+        variantId: item.variantId || null,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         costPriceAtSale: costPriceAtSale
@@ -313,34 +382,77 @@ export async function saveInvoiceAction(
 
       if (!product) continue;
 
-      const currentStock = product.currentStock;
-      const currentAvgCost = parseDecimal(product.movingAverageCost);
       let costPriceAtSale = 0;
-      let nextStock = currentStock;
-      let nextAvgCost = currentAvgCost;
 
-      if (invoiceData.invoiceType === 'PURCHASE') {
-        nextStock = currentStock + item.quantity;
-        if (currentStock > 0) {
-          nextAvgCost = ((currentStock * currentAvgCost) + (item.quantity * item.unitPrice)) / (currentStock + item.quantity);
-        } else {
-          nextAvgCost = item.unitPrice;
+      if (item.variantId) {
+        const [variant] = await db!
+          .select()
+          .from(productVariants)
+          .where(eq(productVariants.id, item.variantId));
+
+        if (variant) {
+          const currentVariantStock = variant.currentStock;
+          const currentVariantAvgCost = parseDecimal(variant.movingAverageCost);
+          let nextVariantStock = currentVariantStock;
+          let nextVariantAvgCost = currentVariantAvgCost;
+
+          if (invoiceData.invoiceType === 'PURCHASE') {
+            nextVariantStock = currentVariantStock + item.quantity;
+            if (currentVariantStock > 0) {
+              nextVariantAvgCost = ((currentVariantStock * currentVariantAvgCost) + (item.quantity * item.unitPrice)) / (currentVariantStock + item.quantity);
+            } else {
+              nextVariantAvgCost = item.unitPrice;
+            }
+            costPriceAtSale = item.unitPrice;
+          } else {
+            nextVariantStock = currentVariantStock - item.quantity;
+            costPriceAtSale = currentVariantAvgCost;
+          }
+
+          // Update variant
+          await db!
+            .update(productVariants)
+            .set({
+              currentStock: nextVariantStock,
+              movingAverageCost: String(parseFloat(nextVariantAvgCost.toFixed(2)))
+            })
+            .where(eq(productVariants.id, item.variantId));
+
+          // Also update parent product's stock (aggregate sum)
+          const nextProductStock = product.currentStock + (invoiceData.invoiceType === 'PURCHASE' ? item.quantity : -item.quantity);
+          await db!
+            .update(products)
+            .set({ currentStock: nextProductStock })
+            .where(eq(products.id, item.productId));
         }
-        costPriceAtSale = item.unitPrice;
       } else {
-        // SALES
-        nextStock = currentStock - item.quantity;
-        costPriceAtSale = currentAvgCost;
-      }
+        const currentStock = product.currentStock;
+        const currentAvgCost = parseDecimal(product.movingAverageCost);
+        let nextStock = currentStock;
+        let nextAvgCost = currentAvgCost;
 
-      // Update product info
-      await db!
-        .update(products)
-        .set({
-          currentStock: nextStock,
-          movingAverageCost: String(parseFloat(nextAvgCost.toFixed(2)))
-        })
-        .where(eq(products.id, item.productId));
+        if (invoiceData.invoiceType === 'PURCHASE') {
+          nextStock = currentStock + item.quantity;
+          if (currentStock > 0) {
+            nextAvgCost = ((currentStock * currentAvgCost) + (item.quantity * item.unitPrice)) / (currentStock + item.quantity);
+          } else {
+            nextAvgCost = item.unitPrice;
+          }
+          costPriceAtSale = item.unitPrice;
+        } else {
+          nextStock = currentStock - item.quantity;
+          costPriceAtSale = currentAvgCost;
+        }
+
+        // Update product info
+        await db!
+          .update(products)
+          .set({
+            currentStock: nextStock,
+            movingAverageCost: String(parseFloat(nextAvgCost.toFixed(2)))
+          })
+          .where(eq(products.id, item.productId));
+      }
 
       // Create item record
       await db!
@@ -348,6 +460,7 @@ export async function saveInvoiceAction(
         .values({
           invoiceId: newInvoice.id,
           productId: item.productId,
+          variantId: item.variantId || null,
           quantity: item.quantity,
           unitPrice: String(item.unitPrice),
           costPriceAtSale: String(parseFloat(costPriceAtSale.toFixed(2)))
@@ -407,7 +520,7 @@ export async function recordPaymentAction(invoiceId: number, amountPaid: number)
       id: logId,
       username,
       action: 'PAYMENT_RECORDED',
-      details: `Recorded payment of ৳${amountPaid} for ${invoice.invoiceType} invoice ${invoice.manualInvoiceNo} (${invoice.partyName})`,
+      details: `Recorded payment of à§³${amountPaid} for ${invoice.invoiceType} invoice ${invoice.manualInvoiceNo} (${invoice.partyName})`,
       timestamp: new Date().toISOString()
     });
 
@@ -462,7 +575,7 @@ export async function recordPaymentAction(invoiceId: number, amountPaid: number)
     await db!.insert(auditLogs).values({
       username,
       action: 'PAYMENT_RECORDED',
-      details: `Recorded payment of ৳${amountPaid} for ${invoice.invoiceType} invoice ${invoice.manualInvoiceNo} (${invoice.partyName})`
+      details: `Recorded payment of à§³${amountPaid} for ${invoice.invoiceType} invoice ${invoice.manualInvoiceNo} (${invoice.partyName})`
     });
 
     revalidatePath('/');
@@ -1276,6 +1389,7 @@ export async function getProductsAction() {
   if (isDemoMode) {
     const data = readLocalDb();
     return data.products.map(p => {
+      const variants = (data.productVariants || []).filter(v => v.productId === p.id);
       const history = data.invoiceItems
         .filter(item => item.productId === p.id)
         .map(item => {
@@ -1290,13 +1404,18 @@ export async function getProductsAction() {
         .sort((a, b) => b.date.localeCompare(a.date))
         .slice(0, 5)
         .map(h => ({ date: h.date, price: h.price }));
-      return { ...p, priceHistory: history };
+      return { ...p, hasVariants: variants.length > 0, variants, priceHistory: history };
     });
   }
 
   try {
     const results = await db!.select().from(products);
     return await Promise.all(results.map(async (r) => {
+      const variantRows = await db!
+        .select()
+        .from(productVariants)
+        .where(eq(productVariants.productId, r.id));
+
       const history = await db!
         .select({
           date: invoices.invoiceDate,
@@ -1313,9 +1432,16 @@ export async function getProductsAction() {
         .orderBy(desc(invoices.invoiceDate))
         .limit(5);
 
+      const variants = variantRows.map(v => ({
+        ...v,
+        movingAverageCost: parseDecimal(v.movingAverageCost)
+      }));
+
       return {
         ...r,
         movingAverageCost: parseDecimal(r.movingAverageCost),
+        hasVariants: variants.length > 0,
+        variants,
         priceHistory: history.map(h => ({
           date: h.date,
           price: parseDecimal(h.price)
@@ -1326,6 +1452,284 @@ export async function getProductsAction() {
     console.error('Error getting products:', error);
     return [];
   }
+}
+
+// 14b. ADD PRODUCT MANUALLY ACTION
+export async function addProductAction(formData: {
+  name: string;
+  category: string;
+  minStockAlert: number;
+  barcode?: string | null;
+  imageUrl?: string | null;
+  variants?: {
+    name: string;
+    minStockAlert?: number;
+    barcode?: string | null;
+    imageUrl?: string | null;
+  }[];
+}): Promise<{ success: boolean; error?: string }> {
+  const { name, category, minStockAlert, barcode, imageUrl, variants } = formData;
+
+  if (!name.trim() || !category.trim()) {
+    return { success: false, error: 'Product name and category are required.' };
+  }
+
+  if (isDemoMode) {
+    const data = readLocalDb();
+
+    // Duplicate name check
+    const existing = data.products.find(
+      (p) => p.name.toLowerCase() === name.trim().toLowerCase()
+    );
+    if (existing) {
+      return { success: false, error: 'A product with this name already exists.' };
+    }
+
+    const newId = data.products.length > 0 ? Math.max(...data.products.map((p) => p.id)) + 1 : 1;
+    const newProduct = {
+      id: newId,
+      name: name.trim(),
+      category: category.trim(),
+      currentStock: 0,
+      minStockAlert: minStockAlert ?? 0,
+      movingAverageCost: 0,
+      barcode: barcode?.trim() || null,
+      imageUrl: imageUrl || null,
+    };
+
+    data.products.push(newProduct);
+
+    // Insert variants inline if provided
+    if (variants && variants.length > 0) {
+      if (!data.productVariants) data.productVariants = [];
+      let varId = data.productVariants.length > 0 ? Math.max(...data.productVariants.map(v => v.id)) + 1 : 1;
+      for (const v of variants) {
+        data.productVariants.push({
+          id: varId++,
+          productId: newId,
+          name: v.name.trim(),
+          currentStock: 0,
+          minStockAlert: v.minStockAlert ?? 0,
+          movingAverageCost: 0,
+          barcode: v.barcode?.trim() || null,
+          imageUrl: v.imageUrl || null
+        });
+      }
+    }
+
+    // Audit log
+    const logId = data.auditLogs.length > 0 ? Math.max(...data.auditLogs.map((l) => l.id)) + 1 : 1;
+    data.auditLogs.push({
+      id: logId,
+      username: 'owner',
+      action: 'ADD_PRODUCT',
+      details: `Manually added product: "${newProduct.name}" (Category: ${newProduct.category})`,
+      timestamp: new Date().toISOString(),
+    });
+
+    writeLocalDb(data);
+    revalidatePath('/products');
+    return { success: true };
+  }
+
+  // Postgres Mode
+  try {
+    // Duplicate check
+    const existing = await db!
+      .select({ id: products.id })
+      .from(products)
+      .where(sql`LOWER(${products.name}) = LOWER(${name.trim()})`)
+      .limit(1);
+
+    if (existing.length > 0) {
+      return { success: false, error: 'A product with this name already exists.' };
+    }
+
+    // Get username from session cookie
+    let username = 'owner';
+    try {
+      const cookieStore = await cookies();
+      username = cookieStore.get('session_user')?.value || 'owner';
+    } catch { /* ignore */ }
+
+    const [inserted] = await db!.insert(products).values({
+      name: name.trim(),
+      category: category.trim(),
+      currentStock: 0,
+      minStockAlert: minStockAlert ?? 0,
+      movingAverageCost: '0.00',
+      barcode: barcode?.trim() || null,
+      imageUrl: imageUrl || null,
+    }).returning();
+
+    // Insert variants inline if provided
+    if (variants && variants.length > 0) {
+      for (const v of variants) {
+        await db!.insert(productVariants).values({
+          productId: inserted.id,
+          name: v.name.trim(),
+          currentStock: 0,
+          minStockAlert: v.minStockAlert ?? 0,
+          movingAverageCost: '0.00',
+          barcode: v.barcode?.trim() || null,
+          imageUrl: v.imageUrl || null
+        });
+      }
+    }
+
+    // Audit log
+    await db!.insert(auditLogs).values({
+      username,
+      action: 'ADD_PRODUCT',
+      details: `Manually added product: "${name.trim()}" (Category: ${category.trim()})`,
+    });
+
+    revalidatePath('/products');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error adding product:', error);
+    if (error?.code === '23505') {
+      return { success: false, error: 'A product with this name already exists.' };
+    }
+    return { success: false, error: 'Failed to add product. Please try again.' };
+  }
+}
+
+
+// ─── PRODUCT VARIANT ACTIONS ────────────────────────────────────────────────
+
+// 14c. GET PRODUCT VARIANTS
+export async function getProductVariantsAction(productId: number) {
+  if (isDemoMode) {
+    const data = readLocalDb();
+    return (data.productVariants || []).filter(v => v.productId === productId);
+  }
+  try {
+    const rows = await db!.select().from(productVariants).where(eq(productVariants.productId, productId));
+    return rows.map(v => ({ ...v, movingAverageCost: parseDecimal(v.movingAverageCost) }));
+  } catch (error) { console.error('Error getting variants:', error); return []; }
+}
+
+// 14d. ADD VARIANT
+export async function addVariantAction(formData: {
+  productId: number; name: string; minStockAlert?: number; barcode?: string | null; imageUrl?: string | null;
+}): Promise<{ success: boolean; error?: string; variantId?: number }> {
+  const { productId, name, minStockAlert, barcode, imageUrl } = formData;
+  if (!name.trim()) return { success: false, error: 'Variant name is required.' };
+  if (isDemoMode) {
+    const data = readLocalDb();
+    if (!data.productVariants) data.productVariants = [];
+    const dup = data.productVariants.find(v => v.productId === productId && v.name.toLowerCase() === name.trim().toLowerCase());
+    if (dup) return { success: false, error: 'A variant with this name already exists.' };
+    const newId = data.productVariants.length > 0 ? Math.max(...data.productVariants.map(v => v.id)) + 1 : 1;
+    data.productVariants.push({ id: newId, productId, name: name.trim(), currentStock: 0, minStockAlert: minStockAlert ?? 0, movingAverageCost: 0, barcode: barcode?.trim() || null, imageUrl: imageUrl || null });
+    writeLocalDb(data);
+    revalidatePath('/products');
+    return { success: true, variantId: newId };
+  }
+  try {
+    const dup = await db!.select({ id: productVariants.id }).from(productVariants)
+      .where(and(eq(productVariants.productId, productId), sql`LOWER(${productVariants.name}) = LOWER(${name.trim()})`)).limit(1);
+    if (dup.length > 0) return { success: false, error: 'A variant with this name already exists.' };
+    const [ins] = await db!.insert(productVariants).values({ productId, name: name.trim(), currentStock: 0, minStockAlert: minStockAlert ?? 0, movingAverageCost: '0.00', barcode: barcode?.trim() || null, imageUrl: imageUrl || null }).returning();
+    revalidatePath('/products');
+    return { success: true, variantId: ins.id };
+  } catch (error: any) { console.error('Error adding variant:', error); return { success: false, error: 'Failed to add variant.' }; }
+}
+
+// 14e. UPDATE VARIANT
+export async function updateVariantAction(variantId: number, formData: {
+  name?: string; minStockAlert?: number; barcode?: string | null; imageUrl?: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  if (isDemoMode) {
+    const data = readLocalDb();
+    if (!data.productVariants) return { success: false, error: 'No variants.' };
+    const idx = data.productVariants.findIndex(v => v.id === variantId);
+    if (idx === -1) return { success: false, error: 'Variant not found.' };
+    data.productVariants[idx] = { ...data.productVariants[idx], ...formData, name: formData.name?.trim() || data.productVariants[idx].name };
+    writeLocalDb(data);
+    revalidatePath('/products');
+    return { success: true };
+  }
+  try {
+    await db!.update(productVariants).set({
+      ...(formData.name !== undefined && { name: formData.name.trim() }),
+      ...(formData.minStockAlert !== undefined && { minStockAlert: formData.minStockAlert }),
+      ...(formData.barcode !== undefined && { barcode: formData.barcode?.trim() || null }),
+      ...(formData.imageUrl !== undefined && { imageUrl: formData.imageUrl }),
+    }).where(eq(productVariants.id, variantId));
+    revalidatePath('/products');
+    return { success: true };
+  } catch (error: any) { console.error('Error updating variant:', error); return { success: false, error: 'Failed to update variant.' }; }
+}
+
+// 14f. DELETE VARIANT
+export async function deleteVariantAction(variantId: number): Promise<{ success: boolean; error?: string }> {
+  if (isDemoMode) {
+    const data = readLocalDb();
+    if (!data.productVariants) return { success: false, error: 'No variants.' };
+    data.productVariants = data.productVariants.filter(v => v.id !== variantId);
+    writeLocalDb(data);
+    revalidatePath('/products');
+    return { success: true };
+  }
+  try {
+    await db!.delete(productVariants).where(eq(productVariants.id, variantId));
+    revalidatePath('/products');
+    return { success: true };
+  } catch (error: any) { console.error('Error deleting variant:', error); return { success: false, error: 'Failed to delete variant.' }; }
+}
+
+// 14g. UPDATE PRODUCT
+export async function updateProductAction(productId: number, formData: {
+  name?: string; category?: string; minStockAlert?: number; barcode?: string | null; imageUrl?: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  if (isDemoMode) {
+    const data = readLocalDb();
+    const idx = data.products.findIndex(p => p.id === productId);
+    if (idx === -1) return { success: false, error: 'Product not found.' };
+    if (formData.name) {
+      const dup = data.products.find(p => p.id !== productId && p.name.toLowerCase() === formData.name!.trim().toLowerCase());
+      if (dup) return { success: false, error: 'A product with this name already exists.' };
+    }
+    data.products[idx] = { ...data.products[idx], ...formData, name: formData.name?.trim() || data.products[idx].name };
+    writeLocalDb(data);
+    revalidatePath('/products');
+    return { success: true };
+  }
+  try {
+    if (formData.name) {
+      const dup = await db!.select({ id: products.id }).from(products)
+        .where(and(sql`LOWER(${products.name}) = LOWER(${formData.name.trim()})`, sql`${products.id} != ${productId}`)).limit(1);
+      if (dup.length > 0) return { success: false, error: 'A product with this name already exists.' };
+    }
+    await db!.update(products).set({
+      ...(formData.name !== undefined && { name: formData.name.trim() }),
+      ...(formData.category !== undefined && { category: formData.category.trim() }),
+      ...(formData.minStockAlert !== undefined && { minStockAlert: formData.minStockAlert }),
+      ...(formData.barcode !== undefined && { barcode: formData.barcode?.trim() || null }),
+      ...(formData.imageUrl !== undefined && { imageUrl: formData.imageUrl }),
+    }).where(eq(products.id, productId));
+    revalidatePath('/products');
+    return { success: true };
+  } catch (error: any) { console.error('Error updating product:', error); return { success: false, error: 'Failed to update product.' }; }
+}
+
+// 14h. DELETE PRODUCT
+export async function deleteProductAction(productId: number): Promise<{ success: boolean; error?: string }> {
+  if (isDemoMode) {
+    const data = readLocalDb();
+    data.products = data.products.filter(p => p.id !== productId);
+    if (data.productVariants) data.productVariants = data.productVariants.filter(v => v.productId !== productId);
+    writeLocalDb(data);
+    revalidatePath('/products');
+    return { success: true };
+  }
+  try {
+    await db!.delete(products).where(eq(products.id, productId));
+    revalidatePath('/products');
+    return { success: true };
+  } catch (error: any) { console.error('Error deleting product:', error); return { success: false, error: 'Failed to delete product. It may be referenced by invoices.' }; }
 }
 
 // 15. PARTIES ACTIONS
@@ -1386,7 +1790,7 @@ export async function sendSmsReminderAction(invoiceId: number) {
     }
   }
 
-  const messageText = `প্রিয় ${partyName}, আপনার ইনভয়েস নম্বর ${manualInvoiceNo}-এর বকেয়া পরিমাণ ৳${dueAmount.toLocaleString()} এখনো পরিশোধ করা হয়নি। অনুগ্রহ করে দ্রুত পরিশোধ করুন। ধন্যবাদ, ফারদিন ইলেক্ট্রিক্যালস।`;
+  const messageText = `à¦ªà§à¦°à¦¿à¦¯à¦¼ ${partyName}, à¦†à¦ªà¦¨à¦¾à¦° à¦‡à¦¨à¦­à¦¯à¦¼à§‡à¦¸ à¦¨à¦®à§à¦¬à¦° ${manualInvoiceNo}-à¦à¦° à¦¬à¦•à§‡à¦¯à¦¼à¦¾ à¦ªà¦°à¦¿à¦®à¦¾à¦£ à§³${dueAmount.toLocaleString()} à¦à¦–à¦¨à§‹ à¦ªà¦°à¦¿à¦¶à§‹à¦§ à¦•à¦°à¦¾ à¦¹à¦¯à¦¼à¦¨à¦¿à¥¤ à¦…à¦¨à§à¦—à§à¦°à¦¹ à¦•à¦°à§‡ à¦¦à§à¦°à§à¦¤ à¦ªà¦°à¦¿à¦¶à§‹à¦§ à¦•à¦°à§à¦¨à¥¤ à¦§à¦¨à§à¦¯à¦¬à¦¾à¦¦, à¦«à¦¾à¦°à¦¦à¦¿à¦¨ à¦‡à¦²à§‡à¦•à§à¦Ÿà§à¦°à¦¿à¦•à§à¦¯à¦¾à¦²à¦¸à¥¤`;
 
   // Log SMS dispatch in audit
   await logAuditAction('SMS_REMINDER_SENT', `Sent SMS to ${partyName} (${phone}): "${messageText}"`);
@@ -1471,7 +1875,7 @@ export async function processReturnAction(
     writeLocalDb(data);
     
     // Log audit
-    await logAuditAction('ITEM_RETURNED', `Returned ${returnQty} pcs of ${product.name} from Invoice ${invoice.manualInvoiceNo}. Refunded: ৳${refundAmount}`);
+    await logAuditAction('ITEM_RETURNED', `Returned ${returnQty} pcs of ${product.name} from Invoice ${invoice.manualInvoiceNo}. Refunded: à§³${refundAmount}`);
     
     revalidatePath('/');
     return { success: true };
@@ -1551,7 +1955,7 @@ export async function processReturnAction(
       createdBy: username
     });
 
-    await logAuditAction('ITEM_RETURNED', `Returned ${returnQty} pcs of ${product.name} from Invoice ${invoice.manualInvoiceNo}. Refunded: ৳${refundAmount}`);
+    await logAuditAction('ITEM_RETURNED', `Returned ${returnQty} pcs of ${product.name} from Invoice ${invoice.manualInvoiceNo}. Refunded: à§³${refundAmount}`);
 
     revalidatePath('/');
     return { success: true };
@@ -1605,7 +2009,7 @@ export async function deleteInvoiceAction(invoiceId: number) {
     data.invoices.splice(invoiceIndex, 1);
 
     writeLocalDb(data);
-    await logAuditAction('INVOICE_DELETED', `Deleted ${invoice.invoiceType} invoice ${invoice.manualInvoiceNo} for party "${invoice.partyName}". Reverted dues: ৳${invoice.dueAmount}`);
+    await logAuditAction('INVOICE_DELETED', `Deleted ${invoice.invoiceType} invoice ${invoice.manualInvoiceNo} for party "${invoice.partyName}". Reverted dues: à§³${invoice.dueAmount}`);
     revalidatePath('/');
     return { success: true };
   }
@@ -1649,9 +2053,6 @@ export async function deleteInvoiceAction(invoiceId: number) {
       }
     }
 
-    // Delete records
-    await db!.delete(invoiceItems).where(eq(invoiceItems.invoiceId, invoiceId));
-    await db!.delete(returns).where(eq(returns.invoiceId, invoiceId));
     await db!.delete(invoices).where(eq(invoices.id, invoiceId));
 
     await logAuditAction('INVOICE_DELETED', `Deleted ${invoice.invoiceType} invoice ${invoice.manualInvoiceNo} for party "${invoice.partyName}". Reverted dues: ৳${invoice.dueAmount}`);
@@ -1664,7 +2065,6 @@ export async function deleteInvoiceAction(invoiceId: number) {
   }
 }
 
-// 19. UPDATE INVOICE ACTION
 export async function updateInvoiceAction(
   invoiceId: number,
   invoiceData: {
@@ -1679,6 +2079,7 @@ export async function updateInvoiceAction(
   },
   items: {
     productId: number;
+    variantId?: number | null;
     quantity: number;
     unitPrice: number;
   }[]
@@ -1700,12 +2101,27 @@ export async function updateInvoiceAction(
     // 1. Revert old items stock
     const oldItems = data.invoiceItems.filter(item => item.invoiceId === invoiceId);
     for (const oldItem of oldItems) {
-      const product = data.products.find(p => p.id === oldItem.productId);
-      if (!product) continue;
-      if (invoice.invoiceType === 'PURCHASE') {
-        product.currentStock -= oldItem.quantity;
+      if (oldItem.variantId) {
+        const variant = data.productVariants.find(v => v.id === oldItem.variantId);
+        const product = data.products.find(p => p.id === oldItem.productId);
+        if (variant) {
+          if (invoice.invoiceType === 'PURCHASE') {
+            variant.currentStock -= oldItem.quantity;
+            if (product) product.currentStock -= oldItem.quantity;
+          } else {
+            variant.currentStock += oldItem.quantity;
+            if (product) product.currentStock += oldItem.quantity;
+          }
+        }
       } else {
-        product.currentStock += oldItem.quantity;
+        const product = data.products.find(p => p.id === oldItem.productId);
+        if (product) {
+          if (invoice.invoiceType === 'PURCHASE') {
+            product.currentStock -= oldItem.quantity;
+          } else {
+            product.currentStock += oldItem.quantity;
+          }
+        }
       }
     }
 
@@ -1763,29 +2179,56 @@ export async function updateInvoiceAction(
       if (!product) continue;
 
       let costPriceAtSale = 0;
-      if (invoiceData.invoiceType === 'PURCHASE') {
-        const currentStock = product.currentStock;
-        const currentAvgCost = product.movingAverageCost;
-        const purchaseQty = item.quantity;
-        const purchasePrice = item.unitPrice;
 
-        let newMovingAverageCost = purchasePrice;
-        if (currentStock > 0) {
-          newMovingAverageCost = ((currentStock * currentAvgCost) + (purchaseQty * purchasePrice)) / (currentStock + purchaseQty);
+      if (item.variantId) {
+        const variant = data.productVariants.find(v => v.id === item.variantId);
+        if (variant) {
+          if (invoiceData.invoiceType === 'PURCHASE') {
+            const currentStock = variant.currentStock;
+            const currentAvgCost = variant.movingAverageCost;
+            const purchaseQty = item.quantity;
+            const purchasePrice = item.unitPrice;
+
+            let newMovingAverageCost = purchasePrice;
+            if (currentStock > 0) {
+              newMovingAverageCost = ((currentStock * currentAvgCost) + (purchaseQty * purchasePrice)) / (currentStock + purchaseQty);
+            }
+            variant.movingAverageCost = parseFloat(newMovingAverageCost.toFixed(2));
+            variant.currentStock = currentStock + purchaseQty;
+            product.currentStock = product.currentStock + purchaseQty;
+            costPriceAtSale = purchasePrice;
+          } else {
+            variant.currentStock = variant.currentStock - item.quantity;
+            product.currentStock = product.currentStock - item.quantity;
+            costPriceAtSale = variant.movingAverageCost;
+          }
         }
-
-        product.movingAverageCost = parseFloat(newMovingAverageCost.toFixed(2));
-        product.currentStock = currentStock + purchaseQty;
-        costPriceAtSale = purchasePrice;
       } else {
-        product.currentStock = product.currentStock - item.quantity;
-        costPriceAtSale = product.movingAverageCost;
+        if (invoiceData.invoiceType === 'PURCHASE') {
+          const currentStock = product.currentStock;
+          const currentAvgCost = product.movingAverageCost;
+          const purchaseQty = item.quantity;
+          const purchasePrice = item.unitPrice;
+
+          let newMovingAverageCost = purchasePrice;
+          if (currentStock > 0) {
+            newMovingAverageCost = ((currentStock * currentAvgCost) + (purchaseQty * purchasePrice)) / (currentStock + purchaseQty);
+          }
+
+          product.movingAverageCost = parseFloat(newMovingAverageCost.toFixed(2));
+          product.currentStock = currentStock + purchaseQty;
+          costPriceAtSale = purchasePrice;
+        } else {
+          product.currentStock = product.currentStock - item.quantity;
+          costPriceAtSale = product.movingAverageCost;
+        }
       }
 
       data.invoiceItems.push({
         id: itemIndex++,
         invoiceId: invoiceId,
         productId: item.productId,
+        variantId: item.variantId || null,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         costPriceAtSale: costPriceAtSale
@@ -1807,12 +2250,31 @@ export async function updateInvoiceAction(
 
     // 1. Revert old items stock
     for (const oldItem of oldItems) {
-      const [product] = await db!.select().from(products).where(eq(products.id, oldItem.productId));
-      if (!product) continue;
-      const nextStock = invoice.invoiceType === 'PURCHASE'
-        ? product.currentStock - oldItem.quantity
-        : product.currentStock + oldItem.quantity;
-      await db!.update(products).set({ currentStock: nextStock }).where(eq(products.id, oldItem.productId));
+      if (oldItem.variantId) {
+        const [variant] = await db!.select().from(productVariants).where(eq(productVariants.id, oldItem.variantId));
+        if (variant) {
+          const nextVarStock = invoice.invoiceType === 'PURCHASE'
+            ? variant.currentStock - oldItem.quantity
+            : variant.currentStock + oldItem.quantity;
+          await db!.update(productVariants).set({ currentStock: nextVarStock }).where(eq(productVariants.id, oldItem.variantId));
+          
+          const [product] = await db!.select().from(products).where(eq(products.id, oldItem.productId));
+          if (product) {
+            const nextProdStock = invoice.invoiceType === 'PURCHASE'
+              ? product.currentStock - oldItem.quantity
+              : product.currentStock + oldItem.quantity;
+            await db!.update(products).set({ currentStock: nextProdStock }).where(eq(products.id, oldItem.productId));
+          }
+        }
+      } else {
+        const [product] = await db!.select().from(products).where(eq(products.id, oldItem.productId));
+        if (product) {
+          const nextStock = invoice.invoiceType === 'PURCHASE'
+            ? product.currentStock - oldItem.quantity
+            : product.currentStock + oldItem.quantity;
+          await db!.update(products).set({ currentStock: nextStock }).where(eq(products.id, oldItem.productId));
+        }
+      }
     }
 
     // 2. Revert old party balance
@@ -1873,33 +2335,78 @@ export async function updateInvoiceAction(
       const [product] = await db!.select().from(products).where(eq(products.id, item.productId));
       if (!product) continue;
 
-      const currentStock = product.currentStock;
-      const currentAvgCost = parseDecimal(product.movingAverageCost);
       let costPriceAtSale = 0;
-      let nextStock = currentStock;
-      let nextAvgCost = currentAvgCost;
 
-      if (invoiceData.invoiceType === 'PURCHASE') {
-        nextStock = currentStock + item.quantity;
-        if (currentStock > 0) {
-          nextAvgCost = ((currentStock * currentAvgCost) + (item.quantity * item.unitPrice)) / (currentStock + item.quantity);
-        } else {
-          nextAvgCost = item.unitPrice;
+      if (item.variantId) {
+        const [variant] = await db!.select().from(productVariants).where(eq(productVariants.id, item.variantId));
+        if (variant) {
+          const currentVariantStock = variant.currentStock;
+          const currentVariantAvgCost = parseDecimal(variant.movingAverageCost);
+          let nextVariantStock = currentVariantStock;
+          let nextVariantAvgCost = currentVariantAvgCost;
+
+          if (invoiceData.invoiceType === 'PURCHASE') {
+            nextVariantStock = currentVariantStock + item.quantity;
+            if (currentVariantStock > 0) {
+              nextVariantAvgCost = ((currentVariantStock * currentVariantAvgCost) + (item.quantity * item.unitPrice)) / (currentVariantStock + item.quantity);
+            } else {
+              nextVariantAvgCost = item.unitPrice;
+            }
+            costPriceAtSale = item.unitPrice;
+          } else {
+            nextVariantStock = currentVariantStock - item.quantity;
+            costPriceAtSale = currentVariantAvgCost;
+          }
+
+          // Update variant
+          await db!
+            .update(productVariants)
+            .set({
+              currentStock: nextVariantStock,
+              movingAverageCost: String(parseFloat(nextVariantAvgCost.toFixed(2)))
+            })
+            .where(eq(productVariants.id, item.variantId));
+
+          // Also update parent product's stock (aggregate sum)
+          const nextProductStock = product.currentStock + (invoiceData.invoiceType === 'PURCHASE' ? item.quantity : -item.quantity);
+          await db!
+            .update(products)
+            .set({ currentStock: nextProductStock })
+            .where(eq(products.id, item.productId));
         }
-        costPriceAtSale = item.unitPrice;
       } else {
-        nextStock = currentStock - item.quantity;
-        costPriceAtSale = currentAvgCost;
-      }
+        const currentStock = product.currentStock;
+        const currentAvgCost = parseDecimal(product.movingAverageCost);
+        let nextStock = currentStock;
+        let nextAvgCost = currentAvgCost;
 
-      await db!.update(products).set({
-        currentStock: nextStock,
-        movingAverageCost: String(parseFloat(nextAvgCost.toFixed(2)))
-      }).where(eq(products.id, item.productId));
+        if (invoiceData.invoiceType === 'PURCHASE') {
+          nextStock = currentStock + item.quantity;
+          if (currentStock > 0) {
+            nextAvgCost = ((currentStock * currentAvgCost) + (item.quantity * item.unitPrice)) / (currentStock + item.quantity);
+          } else {
+            nextAvgCost = item.unitPrice;
+          }
+          costPriceAtSale = item.unitPrice;
+        } else {
+          nextStock = currentStock - item.quantity;
+          costPriceAtSale = currentAvgCost;
+        }
+
+        // Update product info
+        await db!
+          .update(products)
+          .set({
+            currentStock: nextStock,
+            movingAverageCost: String(parseFloat(nextAvgCost.toFixed(2)))
+          })
+          .where(eq(products.id, item.productId));
+      }
 
       await db!.insert(invoiceItems).values({
         invoiceId: invoiceId,
         productId: item.productId,
+        variantId: item.variantId || null,
         quantity: item.quantity,
         unitPrice: String(item.unitPrice),
         costPriceAtSale: String(parseFloat(costPriceAtSale.toFixed(2)))
@@ -1910,9 +2417,9 @@ export async function updateInvoiceAction(
 
     revalidatePath('/');
     return { success: true };
-  } catch (err: any) {
-    console.error('Error updating invoice in DB:', err);
-    throw new Error(err.message || 'Failed to update invoice');
+  } catch (error: any) {
+    console.error('Error updating invoice in DB:', error);
+    throw new Error(error.message || 'Failed to update invoice');
   }
 }
 

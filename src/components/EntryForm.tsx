@@ -10,7 +10,8 @@ import {
   getPartiesAction,
   getInvoiceAction,
   getInvoiceItemsAction,
-  updateInvoiceAction
+  updateInvoiceAction,
+  getNextInvoiceNoAction
 } from '@/lib/actions';
 import { 
   Plus, 
@@ -33,11 +34,23 @@ interface Product {
   minStockAlert: number;
   movingAverageCost: number;
   priceHistory?: { date: string; price: number }[];
+  hasVariants?: boolean;
+  variants?: {
+    id: number;
+    productId: number;
+    name: string;
+    currentStock: number;
+    minStockAlert: number;
+    movingAverageCost: number;
+    barcode?: string | null;
+    imageUrl?: string | null;
+  }[];
 }
 
 interface ItemRow {
   tempId: number;
   product: Product | null;
+  selectedVariantId?: number | null;
   typedName: string;
   quantity: number;
   unitPrice: number;
@@ -57,6 +70,7 @@ export default function EntryForm() {
 
   // Form metadata
   const [manualInvoiceNo, setManualInvoiceNo] = useState('');
+  const [invoiceNoAutoSuggested, setInvoiceNoAutoSuggested] = useState(false);
   const [invoiceDate, setInvoiceDate] = useState('');
   const [partyName, setPartyName] = useState('');
   const [paidAmount, setPaidAmount] = useState<number | ''>('');
@@ -222,6 +236,26 @@ export default function EntryForm() {
     }
   }, [searchParams]);
 
+  // Auto-suggest next invoice number whenever type changes (skip in edit mode)
+  useEffect(() => {
+    if (isEditing) return;
+    async function fetchNextNo() {
+      try {
+        const suggested = await getNextInvoiceNoAction(invoiceType);
+        if (suggested) {
+          setManualInvoiceNo(suggested);
+          setInvoiceNoAutoSuggested(true);
+        } else {
+          setManualInvoiceNo('');
+          setInvoiceNoAutoSuggested(false);
+        }
+      } catch (err) {
+        console.error('Could not fetch next invoice no:', err);
+      }
+    }
+    fetchNextNo();
+  }, [invoiceType, isEditing]);
+
   // Calculate totals
   const totalAmount = rows.reduce((sum, row) => sum + (row.quantity * row.unitPrice || 0), 0);
   const calculatedDueAmount = Math.max(0, totalAmount - (typeof paidAmount === 'number' ? paidAmount : totalAmount));
@@ -279,11 +313,16 @@ export default function EntryForm() {
   const selectProduct = (rowIndex: number, product: Product) => {
     setRows(prev => prev.map((r, idx) => {
       if (idx === rowIndex) {
+        const firstVariant = product.variants && product.variants.length > 0 ? product.variants[0] : null;
+        const defaultPrice = firstVariant 
+          ? (invoiceType === 'SALES' ? firstVariant.movingAverageCost * 1.25 : firstVariant.movingAverageCost)
+          : (invoiceType === 'SALES' ? product.movingAverageCost * 1.25 : product.movingAverageCost);
         return {
           ...r,
           product,
+          selectedVariantId: firstVariant ? firstVariant.id : null,
           typedName: product.name,
-          unitPrice: invoiceType === 'SALES' ? product.movingAverageCost * 1.25 : product.movingAverageCost,
+          unitPrice: parseFloat(defaultPrice.toFixed(2)),
           showSuggestions: false,
           suggestions: []
         };
@@ -300,6 +339,7 @@ export default function EntryForm() {
         {
           tempId: Date.now(),
           product: null,
+          selectedVariantId: null,
           typedName: '',
           quantity: 1,
           unitPrice: 0,
@@ -321,6 +361,7 @@ export default function EntryForm() {
       {
         tempId: nextId,
         product: null,
+        selectedVariantId: null,
         typedName: '',
         quantity: 1,
         unitPrice: 0,
@@ -427,6 +468,7 @@ export default function EntryForm() {
 
     const itemPayload = validItems.map(item => ({
       productId: item.product!.id,
+      variantId: item.selectedVariantId || null,
       quantity: item.quantity,
       unitPrice: item.unitPrice
     }));
@@ -455,6 +497,7 @@ export default function EntryForm() {
         {
           tempId: Date.now(),
           product: null,
+          selectedVariantId: null,
           typedName: '',
           quantity: 1,
           unitPrice: 0,
@@ -563,13 +606,21 @@ export default function EntryForm() {
                 <label className="text-xs font-semibold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5" />
                   {t('invoiceNo')}
+                  {invoiceNoAutoSuggested && !isEditing && (
+                    <span className="ml-auto text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                      auto
+                    </span>
+                  )}
                 </label>
                 <input
                   type="text"
                   placeholder="e.g. S-102 or P-205"
                   value={manualInvoiceNo}
-                  onChange={(e) => setManualInvoiceNo(e.target.value)}
-                  className="w-full rounded-xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-amber-500 transition-colors"
+                  onChange={(e) => {
+                    setManualInvoiceNo(e.target.value);
+                    setInvoiceNoAutoSuggested(false);
+                  }}
+                  className="w-full rounded-xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-amber-500 transition-colors font-mono"
                 />
               </div>
 
@@ -622,7 +673,9 @@ export default function EntryForm() {
                 <tbody>
                   {rows.map((row, rowIndex) => {
                     const lineTotal = (row.quantity * row.unitPrice) || 0;
-                    const willGoNegative = invoiceType === 'SALES' && row.product && (row.product.currentStock < row.quantity);
+                    const selectedVar = row.product?.variants?.find(v => v.id === row.selectedVariantId);
+                    const currentStock = selectedVar ? selectedVar.currentStock : (row.product ? row.product.currentStock : 0);
+                    const willGoNegative = invoiceType === 'SALES' && row.product && (currentStock < row.quantity);
 
                     return (
                       <tr 
@@ -714,20 +767,60 @@ export default function EntryForm() {
                             />
                           </div>
                           {row.product && (
-                            <div className="text-[10px] text-neutral-500 mt-1 select-none font-mono flex gap-3">
-                              <span>
-                                {language === 'en' ? 'Stock:' : 'স্টক:'} {row.product.currentStock} pcs
-                              </span>
-                              {row.product.priceHistory && row.product.priceHistory.length > 0 ? (
-                                <span className="text-amber-500">
-                                  {language === 'en' ? 'Last Cost:' : 'শেষ ক্রয় মূল্য:'} ৳{row.product.priceHistory[0].price.toFixed(2)}
+                            <div className="space-y-1.5 mt-1 select-none text-[10px] text-neutral-500 font-mono">
+                              <div className="flex gap-3">
+                                <span>
+                                  {language === 'en' ? 'Stock:' : 'স্টক:'} {currentStock} pcs
                                 </span>
-                              ) : (
-                                row.product.movingAverageCost > 0 && (
-                                  <span className="text-neutral-600">
-                                    {language === 'en' ? 'Avg Cost:' : 'গড় মূল্য:'} ৳{row.product.movingAverageCost.toFixed(2)}
+                                {!row.product.variants || row.product.variants.length === 0 ? (
+                                  row.product.priceHistory && row.product.priceHistory.length > 0 ? (
+                                    <span className="text-amber-500">
+                                      {language === 'en' ? 'Last Cost:' : 'শেষ ক্রয় মূল্য:'} ৳{row.product.priceHistory[0].price.toFixed(2)}
+                                    </span>
+                                  ) : (
+                                    row.product.movingAverageCost > 0 && (
+                                      <span className="text-neutral-600">
+                                        {language === 'en' ? 'Avg Cost:' : 'গড় মূল্য:'} ৳{row.product.movingAverageCost.toFixed(2)}
+                                      </span>
+                                    )
+                                  )
+                                ) : (
+                                  selectedVar && selectedVar.movingAverageCost > 0 && (
+                                    <span className="text-neutral-600">
+                                      {language === 'en' ? 'Avg Cost:' : 'গড় মূল্য:'} ৳{selectedVar.movingAverageCost.toFixed(2)}
+                                    </span>
+                                  )
+                                )}
+                              </div>
+
+                              {row.product.variants && row.product.variants.length > 0 && (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[9px] font-semibold text-neutral-450 uppercase">
+                                    {language === 'en' ? 'Variation:' : 'ভেরিয়েশন:'}
                                   </span>
-                                )
+                                  <select
+                                    value={row.selectedVariantId || ''}
+                                    onChange={(e) => {
+                                      const vId = Number(e.target.value);
+                                      const v = row.product?.variants?.find(x => x.id === vId);
+                                      if (v) {
+                                        const price = invoiceType === 'SALES' ? v.movingAverageCost * 1.25 : v.movingAverageCost;
+                                        setRows(prev => prev.map((r, idx) => idx === rowIndex ? {
+                                          ...r,
+                                          selectedVariantId: vId,
+                                          unitPrice: parseFloat(price.toFixed(2))
+                                        } : r));
+                                      }
+                                    }}
+                                    className="bg-neutral-900 border border-neutral-800 rounded px-1.5 py-0.5 text-[9px] text-neutral-300 outline-none focus:border-amber-500 font-bold cursor-pointer"
+                                  >
+                                    {row.product.variants.map(v => (
+                                      <option key={v.id} value={v.id}>
+                                        {v.name} (Stock: {v.currentStock} pcs)
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
                               )}
                             </div>
                           )}

@@ -62,6 +62,45 @@
       "minStockAlert": 10,
       "movingAverageCost": 30,
       "barcode": null
+    },
+    {
+      "id": 8,
+      "name": "Test Product XYZ",
+      "category": "General",
+      "currentStock": 18,
+      "minStockAlert": 5,
+      "movingAverageCost": 10.5,
+      "barcode": "1234567890"
+    },
+    {
+      "id": 9,
+      "name": "Havells",
+      "category": "Lighting",
+      "currentStock": 0,
+      "minStockAlert": 5,
+      "movingAverageCost": 0,
+      "barcode": null,
+      "imageUrl": "/product-images/1783848531682-j0xy23-1_9027478d-ebcf-4ceb-aa4f-a015e5560a25.jpg"
+    },
+    {
+      "id": 10,
+      "name": "LED Tube Light - Updated",
+      "category": "Lighting",
+      "currentStock": 0,
+      "minStockAlert": 0,
+      "movingAverageCost": 0,
+      "barcode": null,
+      "imageUrl": null
+    },
+    {
+      "id": 11,
+      "name": "LED Tube Light",
+      "category": "Lighting",
+      "currentStock": 0,
+      "minStockAlert": 0,
+      "movingAverageCost": 0,
+      "barcode": null,
+      "imageUrl": null
     }
   ],
   "invoices": [
@@ -82,8 +121,8 @@
       "invoiceDate": "2026-06-16",
       "partyName": "Kabir Rahman",
       "totalAmount": 4800,
-      "paidAmount": 3000,
-      "dueAmount": 1800
+      "paidAmount": 4800,
+      "dueAmount": 0
     },
     {
       "id": 3,
@@ -131,6 +170,45 @@
       "expectedPaymentDate": null,
       "createdBy": "owner",
       "partyId": 4
+    },
+    {
+      "id": 7,
+      "invoiceType": "PURCHASE",
+      "manualInvoiceNo": "001",
+      "invoiceDate": "2026-07-12",
+      "partyName": "KBP",
+      "totalAmount": 100,
+      "paidAmount": 100,
+      "dueAmount": 0,
+      "expectedPaymentDate": null,
+      "createdBy": "owner",
+      "partyId": 5
+    },
+    {
+      "id": 8,
+      "invoiceType": "PURCHASE",
+      "manualInvoiceNo": "003",
+      "invoiceDate": "2026-07-12",
+      "partyName": "Polycab Distributors Ltd.",
+      "totalAmount": 110,
+      "paidAmount": 110,
+      "dueAmount": 0,
+      "expectedPaymentDate": null,
+      "createdBy": "owner",
+      "partyId": 1
+    },
+    {
+      "id": 9,
+      "invoiceType": "SALES",
+      "manualInvoiceNo": "002",
+      "invoiceDate": "2026-07-12",
+      "partyName": "Ariful",
+      "totalAmount": 30,
+      "paidAmount": 30,
+      "dueAmount": 0,
+      "expectedPaymentDate": null,
+      "createdBy": "owner",
+      "partyId": 6
     }
   ],
   "invoiceItems": [
@@ -197,6 +275,30 @@
       "quantity": 1,
       "unitPrice": 40,
       "costPriceAtSale": 30
+    },
+    {
+      "id": 9,
+      "invoiceId": 7,
+      "productId": 8,
+      "quantity": 10,
+      "unitPrice": 10,
+      "costPriceAtSale": 10
+    },
+    {
+      "id": 10,
+      "invoiceId": 8,
+      "productId": 8,
+      "quantity": 10,
+      "unitPrice": 11,
+      "costPriceAtSale": 11
+    },
+    {
+      "id": 11,
+      "invoiceId": 9,
+      "productId": 8,
+      "quantity": 2,
+      "unitPrice": 15,
+      "costPriceAtSale": 10.5
     }
   ],
   "expenses": [
@@ -228,7 +330,7 @@
       "username": "owner",
       "passwordHash": "owner123",
       "role": "OWNER",
-      "name": "Al-Haj Rafiqul Islam"
+      "name": "Ariful Islam"
     },
     {
       "id": 2,
@@ -253,7 +355,7 @@
       "partyType": "CUSTOMER",
       "phone": "01822233344",
       "address": "Mirpur-10, Dhaka",
-      "currentBalance": 1800
+      "currentBalance": 0
     },
     {
       "id": 3,
@@ -267,6 +369,22 @@
       "id": 4,
       "name": "Ariful Islam",
       "partyType": "SUPPLIER",
+      "phone": null,
+      "address": null,
+      "currentBalance": 0
+    },
+    {
+      "id": 5,
+      "name": "KBP",
+      "partyType": "SUPPLIER",
+      "phone": null,
+      "address": null,
+      "currentBalance": 0
+    },
+    {
+      "id": 6,
+      "name": "Ariful",
+      "partyType": "CUSTOMER",
       "phone": null,
       "address": null,
       "currentBalance": 0
@@ -343,6 +461,153 @@
       "action": "USER_LOGIN",
       "details": "User logged in from IP (Demo)",
       "timestamp": "2026-06-21T16:56:43.473Z"
+    },
+    {
+      "id": 11,
+      "username": "owner",
+      "action": "USER_PROFILE_UPDATED",
+      "details": "Updated name of user \"owner\" from \"Al-Haj Rafiqul Islam\" to \"Ariful Islam\"",
+      "timestamp": "2026-06-21T17:27:45.835Z"
+    },
+    {
+      "id": 12,
+      "username": "owner",
+      "action": "USER_LOGIN",
+      "details": "User logged in from IP (Demo)",
+      "timestamp": "2026-06-26T01:22:15.351Z"
+    },
+    {
+      "id": 13,
+      "username": "owner",
+      "action": "USER_LOGOUT",
+      "details": "User owner logged out",
+      "timestamp": "2026-06-26T01:22:57.880Z"
+    },
+    {
+      "id": 14,
+      "username": "owner",
+      "action": "USER_LOGIN",
+      "details": "User logged in from IP (Demo)",
+      "timestamp": "2026-06-26T01:24:26.853Z"
+    },
+    {
+      "id": 15,
+      "username": "owner",
+      "action": "ADD_PRODUCT",
+      "details": "Manually added product: \"Test Product XYZ\" (Category: General)",
+      "timestamp": "2026-07-12T09:11:34.812Z"
+    },
+    {
+      "id": 16,
+      "username": "owner",
+      "action": "USER_LOGIN",
+      "details": "User logged in from IP (Demo)",
+      "timestamp": "2026-07-12T09:12:47.149Z"
+    },
+    {
+      "id": 17,
+      "username": "owner",
+      "action": "INVOICE_CREATED",
+      "details": "Saved PURCHASE invoice 001 for party \"KBP\". Total: ৳100",
+      "timestamp": "2026-07-12T09:13:45.594Z"
+    },
+    {
+      "id": 18,
+      "username": "owner",
+      "action": "INVOICE_CREATED",
+      "details": "Saved PURCHASE invoice 003 for party \"Polycab Distributors Ltd.\". Total: ৳110",
+      "timestamp": "2026-07-12T09:14:11.976Z"
+    },
+    {
+      "id": 19,
+      "username": "owner",
+      "action": "INVOICE_CREATED",
+      "details": "Saved SALES invoice 002 for party \"Ariful\". Total: ৳30",
+      "timestamp": "2026-07-12T09:19:33.542Z"
+    },
+    {
+      "id": 20,
+      "username": "owner",
+      "action": "SMS_REMINDER_SENT",
+      "details": "Sent SMS to Kabir Rahman (01822233344): \"প্রিয় Kabir Rahman, আপনার ইনভয়েস নম্বর S-451-এর বকেয়া পরিমাণ ৳1,800 এখনো পরিশোধ করা হয়নি। অনুগ্রহ করে দ্রুত পরিশোধ করুন। ধন্যবাদ, ফারদিন ইলেক্ট্রিক্যালস।\"",
+      "timestamp": "2026-07-12T09:23:00.173Z"
+    },
+    {
+      "id": 21,
+      "username": "owner",
+      "action": "PAYMENT_RECORDED",
+      "details": "Recorded payment of ৳1800 for SALES invoice S-451 (Kabir Rahman)",
+      "timestamp": "2026-07-12T09:23:12.493Z"
+    },
+    {
+      "id": 22,
+      "username": "owner",
+      "action": "USER_LOGIN",
+      "details": "User logged in from IP (Demo)",
+      "timestamp": "2026-07-12T09:25:51.449Z"
+    },
+    {
+      "id": 23,
+      "username": "owner",
+      "action": "ADD_PRODUCT",
+      "details": "Manually added product: \"Havells\" (Category: Lighting)",
+      "timestamp": "2026-07-12T09:28:51.719Z"
+    },
+    {
+      "id": 24,
+      "username": "owner",
+      "action": "ADD_PRODUCT",
+      "details": "Manually added product: \"LED Tube Light\" (Category: Lighting)",
+      "timestamp": "2026-07-12T09:45:38.210Z"
+    },
+    {
+      "id": 25,
+      "username": "owner",
+      "action": "ADD_PRODUCT",
+      "details": "Manually added product: \"LED Tube Light\" (Category: Lighting)",
+      "timestamp": "2026-07-12T09:53:17.320Z"
+    }
+  ],
+  "productVariants": [
+    {
+      "id": 1,
+      "productId": 10,
+      "name": "20W White",
+      "currentStock": 0,
+      "minStockAlert": 0,
+      "movingAverageCost": 0,
+      "barcode": null,
+      "imageUrl": null
+    },
+    {
+      "id": 2,
+      "productId": 10,
+      "name": "22W CoolDay",
+      "currentStock": 0,
+      "minStockAlert": 0,
+      "movingAverageCost": 0,
+      "barcode": null,
+      "imageUrl": null
+    },
+    {
+      "id": 3,
+      "productId": 11,
+      "name": "20W White",
+      "currentStock": 0,
+      "minStockAlert": 0,
+      "movingAverageCost": 0,
+      "barcode": null,
+      "imageUrl": null
+    },
+    {
+      "id": 4,
+      "productId": 11,
+      "name": "22W CoolDay Plus",
+      "currentStock": 0,
+      "minStockAlert": 0,
+      "movingAverageCost": 0,
+      "barcode": null,
+      "imageUrl": null
     }
   ]
 }

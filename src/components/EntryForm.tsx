@@ -688,8 +688,8 @@ export default function EntryForm() {
               </div>
             </div>
 
-            <div className="border border-neutral-800 rounded-xl overflow-hidden bg-neutral-950/40">
-              <table className="w-full border-collapse text-left text-sm">
+            <div className="border border-neutral-800 rounded-xl overflow-x-auto bg-neutral-950/40">
+              <table className="w-full min-w-[700px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-neutral-800 bg-neutral-950/80 font-semibold text-neutral-400">
                     <th className="p-3 w-12 text-center">#</th>

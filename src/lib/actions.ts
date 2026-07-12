@@ -62,7 +62,12 @@ export async function searchProductsAction(query: string) {
         .orderBy(desc(invoices.invoiceDate))
         .limit(3);
 
-      const variants = variantRows.map(v => ({ ...v, movingAverageCost: parseDecimal(v.movingAverageCost) }));
+      const variants = variantRows.map(v => ({
+        ...v,
+        id: Number(v.id),
+        productId: Number(v.productId),
+        movingAverageCost: parseDecimal(v.movingAverageCost)
+      }));
 
       return {
         ...r,
@@ -733,6 +738,7 @@ export async function getInvoiceItemsAction(invoiceId: number) {
         id: invoiceItems.id,
         invoiceId: invoiceItems.invoiceId,
         productId: invoiceItems.productId,
+        variantId: invoiceItems.variantId,
         quantity: invoiceItems.quantity,
         unitPrice: invoiceItems.unitPrice,
         costPriceAtSale: invoiceItems.costPriceAtSale,
@@ -744,6 +750,8 @@ export async function getInvoiceItemsAction(invoiceId: number) {
 
     return list.map(i => ({
       ...i,
+      productId: Number(i.productId),
+      variantId: i.variantId ? Number(i.variantId) : null,
       unitPrice: parseDecimal(i.unitPrice),
       costPriceAtSale: parseDecimal(i.costPriceAtSale)
     }));
@@ -1441,6 +1449,8 @@ export async function getProductsAction() {
 
       const variants = variantRows.map(v => ({
         ...v,
+        id: Number(v.id),
+        productId: Number(v.productId),
         movingAverageCost: parseDecimal(v.movingAverageCost)
       }));
 

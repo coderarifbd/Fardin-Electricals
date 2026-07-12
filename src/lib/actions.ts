@@ -413,16 +413,21 @@ export async function saveInvoiceAction(
           await db!
             .update(productVariants)
             .set({
-              currentStock: nextVariantStock,
+              currentStock: invoiceData.invoiceType === 'PURCHASE'
+                ? sql`${productVariants.currentStock} + ${item.quantity}`
+                : sql`${productVariants.currentStock} - ${item.quantity}`,
               movingAverageCost: String(parseFloat(nextVariantAvgCost.toFixed(2)))
             })
             .where(eq(productVariants.id, item.variantId));
 
           // Also update parent product's stock (aggregate sum)
-          const nextProductStock = product.currentStock + (invoiceData.invoiceType === 'PURCHASE' ? item.quantity : -item.quantity);
           await db!
             .update(products)
-            .set({ currentStock: nextProductStock })
+            .set({
+              currentStock: invoiceData.invoiceType === 'PURCHASE'
+                ? sql`${products.currentStock} + ${item.quantity}`
+                : sql`${products.currentStock} - ${item.quantity}`
+            })
             .where(eq(products.id, item.productId));
         }
       } else {
@@ -448,7 +453,9 @@ export async function saveInvoiceAction(
         await db!
           .update(products)
           .set({
-            currentStock: nextStock,
+            currentStock: invoiceData.invoiceType === 'PURCHASE'
+              ? sql`${products.currentStock} + ${item.quantity}`
+              : sql`${products.currentStock} - ${item.quantity}`,
             movingAverageCost: String(parseFloat(nextAvgCost.toFixed(2)))
           })
           .where(eq(products.id, item.productId));
@@ -2254,29 +2261,32 @@ export async function updateInvoiceAction(
     // 1. Revert old items stock
     for (const oldItem of oldItems) {
       if (oldItem.variantId) {
-        const [variant] = await db!.select().from(productVariants).where(eq(productVariants.id, oldItem.variantId));
-        if (variant) {
-          const nextVarStock = invoice.invoiceType === 'PURCHASE'
-            ? variant.currentStock - oldItem.quantity
-            : variant.currentStock + oldItem.quantity;
-          await db!.update(productVariants).set({ currentStock: nextVarStock }).where(eq(productVariants.id, oldItem.variantId));
+        await db!
+          .update(productVariants)
+          .set({
+            currentStock: invoice.invoiceType === 'PURCHASE'
+              ? sql`${productVariants.currentStock} - ${oldItem.quantity}`
+              : sql`${productVariants.currentStock} + ${oldItem.quantity}`
+          })
+          .where(eq(productVariants.id, oldItem.variantId));
           
-          const [product] = await db!.select().from(products).where(eq(products.id, oldItem.productId));
-          if (product) {
-            const nextProdStock = invoice.invoiceType === 'PURCHASE'
-              ? product.currentStock - oldItem.quantity
-              : product.currentStock + oldItem.quantity;
-            await db!.update(products).set({ currentStock: nextProdStock }).where(eq(products.id, oldItem.productId));
-          }
-        }
+        await db!
+          .update(products)
+          .set({
+            currentStock: invoice.invoiceType === 'PURCHASE'
+              ? sql`${products.currentStock} - ${oldItem.quantity}`
+              : sql`${products.currentStock} + ${oldItem.quantity}`
+          })
+          .where(eq(products.id, oldItem.productId));
       } else {
-        const [product] = await db!.select().from(products).where(eq(products.id, oldItem.productId));
-        if (product) {
-          const nextStock = invoice.invoiceType === 'PURCHASE'
-            ? product.currentStock - oldItem.quantity
-            : product.currentStock + oldItem.quantity;
-          await db!.update(products).set({ currentStock: nextStock }).where(eq(products.id, oldItem.productId));
-        }
+        await db!
+          .update(products)
+          .set({
+            currentStock: invoice.invoiceType === 'PURCHASE'
+              ? sql`${products.currentStock} - ${oldItem.quantity}`
+              : sql`${products.currentStock} + ${oldItem.quantity}`
+          })
+          .where(eq(products.id, oldItem.productId));
       }
     }
 
@@ -2365,16 +2375,21 @@ export async function updateInvoiceAction(
           await db!
             .update(productVariants)
             .set({
-              currentStock: nextVariantStock,
+              currentStock: invoiceData.invoiceType === 'PURCHASE'
+                ? sql`${productVariants.currentStock} + ${item.quantity}`
+                : sql`${productVariants.currentStock} - ${item.quantity}`,
               movingAverageCost: String(parseFloat(nextVariantAvgCost.toFixed(2)))
             })
             .where(eq(productVariants.id, item.variantId));
 
           // Also update parent product's stock (aggregate sum)
-          const nextProductStock = product.currentStock + (invoiceData.invoiceType === 'PURCHASE' ? item.quantity : -item.quantity);
           await db!
             .update(products)
-            .set({ currentStock: nextProductStock })
+            .set({
+              currentStock: invoiceData.invoiceType === 'PURCHASE'
+                ? sql`${products.currentStock} + ${item.quantity}`
+                : sql`${products.currentStock} - ${item.quantity}`
+            })
             .where(eq(products.id, item.productId));
         }
       } else {
@@ -2400,7 +2415,9 @@ export async function updateInvoiceAction(
         await db!
           .update(products)
           .set({
-            currentStock: nextStock,
+            currentStock: invoiceData.invoiceType === 'PURCHASE'
+              ? sql`${products.currentStock} + ${item.quantity}`
+              : sql`${products.currentStock} - ${item.quantity}`,
             movingAverageCost: String(parseFloat(nextAvgCost.toFixed(2)))
           })
           .where(eq(products.id, item.productId));

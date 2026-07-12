@@ -238,10 +238,15 @@ export default function EntryForm() {
 
   // Auto-suggest next invoice number whenever type changes (skip in edit mode)
   useEffect(() => {
+    const editIdParam = searchParams.get('edit');
+    if (editIdParam) return;
     if (isEditing) return;
+
+    let active = true;
     async function fetchNextNo() {
       try {
         const suggested = await getNextInvoiceNoAction(invoiceType);
+        if (!active) return;
         if (suggested) {
           setManualInvoiceNo(suggested);
           setInvoiceNoAutoSuggested(true);
@@ -254,7 +259,11 @@ export default function EntryForm() {
       }
     }
     fetchNextNo();
-  }, [invoiceType, isEditing]);
+
+    return () => {
+      active = false;
+    };
+  }, [invoiceType, isEditing, searchParams]);
 
   // Calculate totals
   const totalAmount = rows.reduce((sum, row) => sum + (row.quantity * row.unitPrice || 0), 0);

@@ -356,22 +356,43 @@ export default function EntryForm() {
   // 4. ADD NEW ROW
   const appendBlankRow = () => {
     const nextId = Date.now();
+    const lastRow = rows[rows.length - 1];
+    const prevProduct = lastRow ? lastRow.product : null;
+    
+    let nextVariantId = null;
+    let nextUnitPrice = 0;
+    if (prevProduct && prevProduct.variants && prevProduct.variants.length > 0) {
+      const prevVarIdx = prevProduct.variants.findIndex(v => v.id === lastRow.selectedVariantId);
+      const nextVarIdx = prevVarIdx !== -1 ? (prevVarIdx + 1) % prevProduct.variants.length : 0;
+      const nextVar = prevProduct.variants[nextVarIdx];
+      nextVariantId = nextVar.id;
+      const price = invoiceType === 'SALES' ? nextVar.movingAverageCost * 1.25 : nextVar.movingAverageCost;
+      nextUnitPrice = parseFloat(price.toFixed(2));
+    } else if (prevProduct) {
+      nextUnitPrice = lastRow ? lastRow.unitPrice : prevProduct.movingAverageCost;
+    }
+
     setRows(prev => [
       ...prev,
       {
         tempId: nextId,
-        product: null,
-        selectedVariantId: null,
-        typedName: '',
+        product: prevProduct,
+        selectedVariantId: nextVariantId,
+        typedName: prevProduct ? prevProduct.name : '',
         quantity: 1,
-        unitPrice: 0,
+        unitPrice: nextUnitPrice,
         showSuggestions: false,
         suggestions: [],
         activeSuggestionIndex: 0
       }
     ]);
+    
     const nextRowIdx = rows.length;
-    focusCell(nextRowIdx, 'product');
+    if (prevProduct) {
+      focusCell(nextRowIdx, 'qty');
+    } else {
+      focusCell(nextRowIdx, 'product');
+    }
   };
 
   // 5. IN-LINE QUICK ADD POP OVER
@@ -700,7 +721,8 @@ export default function EntryForm() {
                               autoComplete="off"
                               placeholder={language === 'en' ? 'Type product name...' : 'পণ্যের নাম লিখুন...'}
                               value={row.typedName}
-                              onFocus={() => {
+                              onFocus={(e) => {
+                                e.target.select();
                                 setRows(prev => prev.map((r, idx) => idx === rowIndex ? { ...r, showSuggestions: r.suggestions.length > 0 } : r));
                               }}
                               onChange={(e) => handleProductSearch(rowIndex, e.target.value)}

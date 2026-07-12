@@ -81,7 +81,7 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
   const [expandedVariantsId, setExpandedVariantsId] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<'GRID' | 'LIST'>('GRID');
+  const [viewMode, setViewMode] = useState<'GRID' | 'LIST'>('LIST');
 
   // Toasts
   const [toasts, setToasts] = useState<Toast[]>([]);

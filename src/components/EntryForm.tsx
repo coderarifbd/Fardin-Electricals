@@ -117,6 +117,7 @@ export default function EntryForm() {
                 currentStock: 0,
                 minStockAlert: 0
               },
+              selectedVariantId: item.variantId || null,
               typedName: item.productName,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
@@ -129,6 +130,7 @@ export default function EntryForm() {
               {
                 tempId: Date.now(),
                 product: null,
+                selectedVariantId: null,
                 typedName: '',
                 quantity: 1,
                 unitPrice: 0,

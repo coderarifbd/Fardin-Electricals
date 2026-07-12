@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { db, isDemoMode } from './db';
 import { products, productVariants, invoices, invoiceItems, expenses, users, parties, returns, auditLogs } from './db/schema';
 import { readLocalDb, writeLocalDb } from './db/localDb';
-import { eq, like, and, gte, lte, desc, inArray, notInArray, sql } from 'drizzle-orm';
+import { eq, like, and, gte, lte, desc, inArray, notInArray, sql, ilike } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 
 // Convert decimal values to numbers safely
@@ -45,7 +45,7 @@ export async function searchProductsAction(query: string) {
     const results = await db!
       .select()
       .from(products)
-      .where(like(products.name, `%${query}%`))
+      .where(ilike(products.name, `%${query}%`))
       .limit(15);
       
     const mapped = await Promise.all(results.map(async (r) => {

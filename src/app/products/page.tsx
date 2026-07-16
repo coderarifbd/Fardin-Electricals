@@ -193,14 +193,15 @@ export default function ProductsPage() {
       addToast('error', language === 'en' ? 'Variation value is required' : 'ভেরিয়েশনের মান প্রয়োজন');
       return;
     }
-    if (addVariants.some(v => v.name.toLowerCase() === attrVal.toLowerCase())) {
+    const combinedName = `${attrKey}: ${attrVal}`;
+    if (addVariants.some(v => v.name.toLowerCase() === combinedName.toLowerCase())) {
       addToast('error', language === 'en' ? 'Duplicate variant' : 'একই ভেরিয়েশন ইতিমধ্যে রয়েছে');
       return;
     }
     setAddVariants(prev => [
       ...prev,
       {
-        name: attrVal,
+        name: combinedName,
         barcode: tempVariantBarcode.trim() || null,
         minStockAlert: tempVariantMinAlert,
         imageUrl: tempVariantImageUrl,
@@ -291,7 +292,7 @@ export default function ProductsPage() {
     
     const combinations = generateCartesianProduct(matrixGroups);
     const newVariantsList: Variant[] = combinations.map(combo => {
-      const name = Object.values(combo).join(' - ');
+      const name = Object.entries(combo).map(([k, v]) => `${k}: ${v}`).join(' - ');
       return {
         name,
         minStockAlert: 0,
@@ -405,7 +406,7 @@ export default function ProductsPage() {
 
     const res = await addVariantAction({
       productId: editProduct.id,
-      name: attrVal,
+      name: `${attrKey}: ${attrVal}`,
       barcode: newVariantBarcode.trim() || null,
       attributes: { [attrKey]: attrVal },
       retailPrice: newVariantRetailPrice === '' ? 0 : Number(newVariantRetailPrice),
@@ -440,7 +441,7 @@ export default function ProductsPage() {
       return;
     }
     const res = await updateVariantAction(variantId, {
-      name: attrVal,
+      name: `${attrKey}: ${attrVal}`,
       barcode: editingVariantBarcode.trim() || null,
       retailPrice: editingVariantRetailPrice === '' ? 0 : Number(editingVariantRetailPrice),
       attributes: { [attrKey]: attrVal }
@@ -758,11 +759,17 @@ export default function ProductsPage() {
                             <div>
                               <div className="font-bold text-neutral-300 flex items-center gap-1.5 flex-wrap">
                                 {v.name}
-                                {v.attributes && Object.entries(v.attributes).map(([key, val]) => (
-                                  <span key={key} className="text-[7.5px] font-extrabold bg-neutral-900 border border-neutral-800 text-neutral-450 px-1 py-0.5 rounded tracking-wide">
-                                    {key}: {val}
-                                  </span>
-                                ))}
+                                {v.attributes && Object.entries(v.attributes).map(([key, val]) => {
+                                  const lowerName = v.name.toLowerCase();
+                                  if (lowerName.includes(key.toLowerCase()) && lowerName.includes(val.toLowerCase())) {
+                                    return null;
+                                  }
+                                  return (
+                                    <span key={key} className="text-[7.5px] font-extrabold bg-neutral-900 border border-neutral-800 text-neutral-450 px-1 py-0.5 rounded tracking-wide">
+                                      {key}: {val}
+                                    </span>
+                                  );
+                                })}
                               </div>
                               {v.barcode && <div className="text-[8px] text-neutral-600 mt-0.5">BC: {v.barcode}</div>}
                             </div>
@@ -1270,11 +1277,17 @@ export default function ProductsPage() {
                               <span className="font-bold text-neutral-200">{v.name}</span>
                               {v.attributes && (
                                 <div className="flex flex-wrap gap-1 mt-0.5">
-                                  {Object.entries(v.attributes).map(([key, val]) => (
-                                    <span key={key} className="text-[7.5px] font-semibold bg-neutral-900 border border-neutral-800 text-neutral-500 px-1 py-0.2 rounded">
-                                      {key}: {val}
-                                    </span>
-                                  ))}
+                                  {Object.entries(v.attributes).map(([key, val]) => {
+                                    const lowerName = v.name.toLowerCase();
+                                    if (lowerName.includes(key.toLowerCase()) && lowerName.includes(val.toLowerCase())) {
+                                      return null;
+                                    }
+                                    return (
+                                      <span key={key} className="text-[7.5px] font-semibold bg-neutral-900 border border-neutral-800 text-neutral-500 px-1 py-0.2 rounded">
+                                        {key}: {val}
+                                      </span>
+                                    );
+                                  })}
                                 </div>
                               )}
                               {v.barcode && <span className="text-[9px] text-neutral-600 ml-2 font-mono">BC: {v.barcode}</span>}
@@ -1687,11 +1700,17 @@ export default function ProductsPage() {
                               <div>
                                 <div className="font-bold text-neutral-200 flex items-center gap-1.5 flex-wrap">
                                   {v.name}
-                                  {v.attributes && Object.entries(v.attributes).map(([key, val]) => (
-                                    <span key={key} className="text-[7.5px] font-extrabold bg-neutral-900 border border-neutral-800 text-neutral-450 px-1 py-0.5 rounded tracking-wide">
-                                      {key}: {val}
-                                    </span>
-                                  ))}
+                                  {v.attributes && Object.entries(v.attributes).map(([key, val]) => {
+                                    const lowerName = v.name.toLowerCase();
+                                    if (lowerName.includes(key.toLowerCase()) && lowerName.includes(val.toLowerCase())) {
+                                      return null;
+                                    }
+                                    return (
+                                      <span key={key} className="text-[7.5px] font-extrabold bg-neutral-900 border border-neutral-800 text-neutral-450 px-1 py-0.5 rounded tracking-wide">
+                                        {key}: {val}
+                                      </span>
+                                    );
+                                  })}
                                 </div>
                                 <div className="text-[10px] text-neutral-500 flex gap-2.5 mt-0.5 font-mono">
                                   <span>Stock: {v.currentStock ?? 0}</span>

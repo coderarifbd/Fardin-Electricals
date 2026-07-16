@@ -33,6 +33,7 @@ interface Product {
   currentStock: number;
   minStockAlert: number;
   movingAverageCost: number;
+  unit?: string;
   hasVariants?: boolean;
   variants?: {
     id: number;
@@ -477,11 +478,31 @@ export default function POSBilling() {
                           <span className="text-[9px] font-mono text-neutral-500 bg-neutral-950 border border-neutral-850 px-1.5 py-0.5 rounded">
                             {item.product.category}
                           </span>
-                          {selectedVar && (
-                            <span className="text-[9px] font-bold text-purple-400 bg-purple-950/20 border border-purple-900/40 px-1.5 py-0.5 rounded">
-                              {selectedVar.name}
-                            </span>
-                          )}
+                          {item.product.variants && item.product.variants.length > 0 ? (
+                            <select
+                              value={item.selectedVariantId || ''}
+                              onChange={(e) => {
+                                const vId = Number(e.target.value);
+                                const v = item.product.variants?.find(x => x.id === vId);
+                                if (v) {
+                                  const baseCost = v.movingAverageCost || item.product.movingAverageCost;
+                                  const retailPrice = baseCost * 1.25; // 25% markup default
+                                  setCart(prev => prev.map((cItem, cIdx) => cIdx === index ? {
+                                    ...cItem,
+                                    selectedVariantId: vId,
+                                    unitPrice: parseFloat(retailPrice.toFixed(2))
+                                  } : cItem));
+                                }
+                              }}
+                              className="bg-neutral-950 border border-neutral-850 rounded px-1.5 py-0.5 text-[9px] text-purple-400 outline-none focus:border-amber-500 font-bold cursor-pointer max-w-[120px] truncate"
+                            >
+                              {item.product.variants.map(v => (
+                                <option key={v.id} value={v.id} className="bg-neutral-950 text-neutral-200">
+                                  {v.name} (Stock: {v.currentStock} {item.product.unit || 'pcs'})
+                                </option>
+                              ))}
+                            </select>
+                          ) : null}
                         </div>
                       </div>
 

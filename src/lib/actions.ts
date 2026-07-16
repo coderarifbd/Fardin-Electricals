@@ -1658,11 +1658,11 @@ export async function getProductVariantsAction(productId: number) {
 
 // 14d. ADD VARIANT
 export async function addVariantAction(formData: {
-  productId: number; name: string; minStockAlert?: number; barcode?: string | null; imageUrl?: string | null; attributes?: Record<string, string> | null; retailPrice?: number;
+  productId: number; name: string; minStockAlert?: number; barcode?: string | null; imageUrl?: string | null; attributes?: Record<string, string> | null; retailPrice?: number; currentStock?: number;
 }): Promise<{ success: boolean; error?: string; variantId?: number }> {
   await checkPermission('allowStockEdit', 'add product variants');
 
-  const { productId, name, minStockAlert, barcode, imageUrl, attributes, retailPrice } = formData;
+  const { productId, name, minStockAlert, barcode, imageUrl, attributes, retailPrice, currentStock } = formData;
   if (!name.trim()) return { success: false, error: 'Variant name is required.' };
   if (isDemoMode) {
     const data = readLocalDb();
@@ -1670,7 +1670,7 @@ export async function addVariantAction(formData: {
     const dup = data.productVariants.find(v => v.productId === productId && v.name.toLowerCase() === name.trim().toLowerCase());
     if (dup) return { success: false, error: 'A variant with this name already exists.' };
     const newId = data.productVariants.length > 0 ? Math.max(...data.productVariants.map(v => v.id)) + 1 : 1;
-    data.productVariants.push({ id: newId, productId, name: name.trim(), currentStock: 0, minStockAlert: minStockAlert ?? 0, movingAverageCost: 0, retailPrice: retailPrice || 0, barcode: barcode?.trim() || null, imageUrl: imageUrl || null, attributes: attributes || null });
+    data.productVariants.push({ id: newId, productId, name: name.trim(), currentStock: currentStock ?? 0, minStockAlert: minStockAlert ?? 0, movingAverageCost: 0, retailPrice: retailPrice || 0, barcode: barcode?.trim() || null, imageUrl: imageUrl || null, attributes: attributes || null });
     writeLocalDb(data);
     revalidatePath('/products');
     return { success: true, variantId: newId };
@@ -1679,7 +1679,7 @@ export async function addVariantAction(formData: {
     const dup = await db!.select({ id: productVariants.id }).from(productVariants)
       .where(and(eq(productVariants.productId, productId), sql`LOWER(${productVariants.name}) = LOWER(${name.trim()})`)).limit(1);
     if (dup.length > 0) return { success: false, error: 'A variant with this name already exists.' };
-    const [ins] = await db!.insert(productVariants).values({ productId, name: name.trim(), currentStock: 0, minStockAlert: minStockAlert ?? 0, movingAverageCost: '0.00', retailPrice: String(retailPrice || 0), barcode: barcode?.trim() || null, imageUrl: imageUrl || null, attributes: attributes || null }).returning();
+    const [ins] = await db!.insert(productVariants).values({ productId, name: name.trim(), currentStock: currentStock ?? 0, minStockAlert: minStockAlert ?? 0, movingAverageCost: '0.00', retailPrice: String(retailPrice || 0), barcode: barcode?.trim() || null, imageUrl: imageUrl || null, attributes: attributes || null }).returning();
     revalidatePath('/products');
     return { success: true, variantId: ins.id };
   } catch (error: any) { console.error('Error adding variant:', error); return { success: false, error: 'Failed to add variant.' }; }

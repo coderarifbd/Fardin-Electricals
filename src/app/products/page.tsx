@@ -138,6 +138,7 @@ export default function ProductsPage() {
   const [newVariantName, setNewVariantName] = useState('');
   const [newVariantBarcode, setNewVariantBarcode] = useState('');
   const [newVariantRetailPrice, setNewVariantRetailPrice] = useState<number | ''>('');
+  const [newVariantStock, setNewVariantStock] = useState<number | ''>('');
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -397,7 +398,8 @@ export default function ProductsPage() {
       name: newVariantName.trim(),
       barcode: newVariantBarcode.trim() || null,
       attributes: null,
-      retailPrice: newVariantRetailPrice === '' ? 0 : Number(newVariantRetailPrice)
+      retailPrice: newVariantRetailPrice === '' ? 0 : Number(newVariantRetailPrice),
+      currentStock: newVariantStock === '' ? 0 : Number(newVariantStock)
     });
 
     if (res.success) {
@@ -405,6 +407,7 @@ export default function ProductsPage() {
       setNewVariantName('');
       setNewVariantBarcode('');
       setNewVariantRetailPrice('');
+      setNewVariantStock('');
       setShowInlineAddVariantForm(false);
       
       const updatedProducts = await getProductsAction();
@@ -1468,6 +1471,7 @@ export default function ProductsPage() {
                       setNewVariantName('');
                       setNewVariantBarcode('');
                       setNewVariantRetailPrice('');
+                      setNewVariantStock('');
                     }}
                     className="flex items-center gap-1 text-[10px] text-amber-500 hover:text-amber-400 font-semibold transition-colors"
                   >
@@ -1478,22 +1482,22 @@ export default function ProductsPage() {
 
                 {showInlineAddVariantForm && (
                   <div className="p-3.5 rounded-xl border border-neutral-850 bg-neutral-950 text-xs space-y-3 animate-fade-in">
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       <div className="space-y-1">
                         <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
-                          {language === 'en' ? 'Name *' : 'নাম *'}
+                          {language === 'en' ? 'Brand / Spec Name *' : 'কোম্পানি / স্পেক নাম *'}
                         </label>
                         <input
                           type="text"
                           value={newVariantName}
                           onChange={e => setNewVariantName(e.target.value)}
-                          placeholder={language === 'en' ? 'e.g. 12W' : 'যেমন: ১২ ওয়াট'}
+                          placeholder={language === 'en' ? 'e.g. BBS, 9W' : 'যেমন: BBS, ৯ ওয়াট'}
                           className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
                         />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
-                          {language === 'en' ? 'Retail Price (৳)' : 'বিক্রয় মূল্য (৳)'}
+                          {language === 'en' ? 'Retail Price (৳)' : 'খুচরা মূল্য (৳)'}
                         </label>
                         <input
                           type="number"
@@ -1501,6 +1505,18 @@ export default function ProductsPage() {
                           value={newVariantRetailPrice}
                           onChange={e => setNewVariantRetailPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
                           placeholder="0.00"
+                          className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
+                          {language === 'en' ? 'Initial Stock' : 'স্টক (Quantity)'}
+                        </label>
+                        <input
+                          type="number"
+                          value={newVariantStock}
+                          onChange={e => setNewVariantStock(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
+                          placeholder="0"
                           className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono font-semibold"
                         />
                       </div>

@@ -150,6 +150,42 @@ export default function ProductsPage() {
   const [editNewGroupValues, setEditNewGroupValues] = useState('');
   const [editMatrixVariants, setEditMatrixVariants] = useState<Variant[]>([]);
 
+  // Auto-populate edit matrix groups when editProduct changes
+  const populateEditMatrixGroups = (product: Product) => {
+    if (!product.variants || product.variants.length === 0) {
+      setEditMatrixGroups([]);
+      return;
+    }
+
+    const groupsMap: Record<string, Set<string>> = {};
+    for (const v of product.variants) {
+      if (v.attributes) {
+        for (const [key, val] of Object.entries(v.attributes)) {
+          if (!groupsMap[key]) {
+            groupsMap[key] = new Set();
+          }
+          groupsMap[key].add(val);
+        }
+      }
+    }
+
+    const initialGroups = Object.entries(groupsMap).map(([name, setObj]) => ({
+      name,
+      values: Array.from(setObj)
+    }));
+    setEditMatrixGroups(initialGroups);
+  };
+
+  useEffect(() => {
+    if (editProduct) {
+      populateEditMatrixGroups(editProduct);
+    } else {
+      setEditMatrixGroups([]);
+      setEditMatrixVariants([]);
+      setEditVariantTab('MANUAL');
+    }
+  }, [editProduct]);
+
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -200,22 +236,46 @@ export default function ProductsPage() {
       addToast('error', language === 'en' ? 'Variation value is required' : 'ভেরিয়েশনের মান প্রয়োজন');
       return;
     }
-    const combinedName = `${attrKey}: ${attrVal}`;
-    if (addVariants.some(v => v.name.toLowerCase() === combinedName.toLowerCase())) {
-      addToast('error', language === 'en' ? 'Duplicate variant' : 'একই ভেরিয়েশন ইতিমধ্যে রয়েছে');
+
+    const parsedValues = attrVal
+      .split(',')
+      .map(v => v.trim())
+      .filter(v => v !== '');
+
+    if (parsedValues.length === 0) {
+      addToast('error', language === 'en' ? 'Variation value is required' : 'ভেরিয়েশনের মান প্রয়োজন');
       return;
     }
-    setAddVariants(prev => [
-      ...prev,
-      {
+
+    const newVariantsToAdd: Variant[] = [];
+    for (let i = 0; i < parsedValues.length; i++) {
+      const val = parsedValues[i];
+      const combinedName = `${attrKey}: ${val}`;
+      if (
+        addVariants.some(v => v.name.toLowerCase() === combinedName.toLowerCase()) || 
+        newVariantsToAdd.some(v => v.name.toLowerCase() === combinedName.toLowerCase())
+      ) {
+        continue; // skip duplicate
+      }
+      // Only set barcode for the first variant to avoid uniqueness conflict
+      const barcodeVal = i === 0 ? (tempVariantBarcode.trim() || null) : null;
+      newVariantsToAdd.push({
         name: combinedName,
-        barcode: tempVariantBarcode.trim() || null,
+        barcode: barcodeVal,
         minStockAlert: tempVariantMinAlert,
         imageUrl: tempVariantImageUrl,
-        attributes: { [attrKey]: attrVal },
+        attributes: { [attrKey]: val },
         retailPrice: tempVariantRetailPrice === '' ? 0 : Number(tempVariantRetailPrice)
-      }
-    ]);
+      });
+    }
+
+    if (newVariantsToAdd.length > 0) {
+      setAddVariants(prev => [...prev, ...newVariantsToAdd]);
+      addToast('success', language === 'en' ? `Added ${newVariantsToAdd.length} variant(s)` : `${newVariantsToAdd.length}টি ভেরিয়েশন যোগ হয়েছে`);
+    } else {
+      addToast('error', language === 'en' ? 'Duplicate variant(s)' : 'একই ভেরিয়েশন ইতিমধ্যে রয়েছে');
+    }
+
     setTempVariantAttrKey('');
     setTempVariantAttrVal('');
     setTempVariantBarcode('');
@@ -411,17 +471,46 @@ export default function ProductsPage() {
       return;
     }
 
-    const res = await addVariantAction({
-      productId: editProduct.id,
-      name: `${attrKey}: ${attrVal}`,
-      barcode: newVariantBarcode.trim() || null,
-      attributes: { [attrKey]: attrVal },
-      retailPrice: newVariantRetailPrice === '' ? 0 : Number(newVariantRetailPrice),
-      currentStock: newVariantStock === '' ? 0 : Number(newVariantStock)
-    });
+    const parsedValues = attrVal
+      .split(',')
+      .map(v => v.trim())
+      .filter(v => v !== '');
 
-    if (res.success) {
-      addToast('success', language === 'en' ? 'Variant added!' : 'ভেরিয়েশন যোগ হয়েছে!');
+    if (parsedValues.length === 0) {
+      addToast('error', language === 'en' ? 'Variation value is required.' : 'ভেরিয়েশনের মান লিখুন।');
+      return;
+    }
+
+    setSubmitting(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < parsedValues.length; i++) {
+      const val = parsedValues[i];
+      // Only set barcode for the first variant to avoid uniqueness conflict
+      const barcodeVal = i === 0 ? (newVariantBarcode.trim() || null) : null;
+      
+      const res = await addVariantAction({
+        productId: editProduct.id,
+        name: `${attrKey}: ${val}`,
+        barcode: barcodeVal,
+        attributes: { [attrKey]: val },
+        retailPrice: newVariantRetailPrice === '' ? 0 : Number(newVariantRetailPrice),
+        currentStock: newVariantStock === '' ? 0 : Number(newVariantStock)
+      });
+      if (res.success) {
+        successCount++;
+      } else {
+        failCount++;
+      }
+    }
+    setSubmitting(false);
+
+    if (successCount > 0) {
+      addToast('success', language === 'en' ? `Added ${successCount} variations!` : `${successCount}টি ভেরিয়েশন যোগ হয়েছে!`);
+      if (failCount > 0) {
+        addToast('error', language === 'en' ? `Failed to add ${failCount} variations.` : `${failCount}টি ভেরিয়েশন যোগ করা যায়নি।`);
+      }
       setNewVariantAttrKey('');
       setNewVariantAttrVal('');
       setNewVariantBarcode('');
@@ -434,7 +523,7 @@ export default function ProductsPage() {
       const freshProduct = (updatedProducts as Product[]).find(p => p.id === editProduct.id);
       if (freshProduct) setEditProduct(freshProduct);
     } else {
-      addToast('error', res.error || 'Failed to add variant.');
+      addToast('error', language === 'en' ? 'Failed to add variation(s).' : 'ভেরিয়েশন যোগ করা যায়নি।');
     }
   };
 

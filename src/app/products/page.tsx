@@ -143,6 +143,13 @@ export default function ProductsPage() {
   const [newVariantRetailPrice, setNewVariantRetailPrice] = useState<number | ''>('');
   const [newVariantStock, setNewVariantStock] = useState<number | ''>('');
 
+  // Matrix Configuration inside Edit Modal
+  const [editVariantTab, setEditVariantTab] = useState<'MANUAL' | 'MATRIX'>('MANUAL');
+  const [editMatrixGroups, setEditMatrixGroups] = useState<{ name: string; values: string[] }[]>([]);
+  const [editNewGroupName, setEditNewGroupName] = useState('');
+  const [editNewGroupValues, setEditNewGroupValues] = useState('');
+  const [editMatrixVariants, setEditMatrixVariants] = useState<Variant[]>([]);
+
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -475,6 +482,116 @@ export default function ProductsPage() {
       }
     } else {
       addToast('error', res.error || 'Failed to delete variant.');
+    }
+  };
+
+  // Edit Modal Matrix Handlers
+  const handleEditAddMatrixGroup = () => {
+    if (!editNewGroupName.trim() || !editNewGroupValues.trim()) {
+      addToast('error', language === 'en' ? 'Group name and values are required.' : 'গ্রুপের নাম এবং ভ্যালু প্রয়োজন।');
+      return;
+    }
+    
+    const parsedValues = editNewGroupValues
+      .split(',')
+      .map(v => v.trim())
+      .filter(v => v !== '');
+      
+    if (parsedValues.length === 0) {
+      addToast('error', language === 'en' ? 'Please enter valid comma-separated values.' : 'অনুগ্রহ করে কমা দিয়ে আলাদা করা ভ্যালু লিখুন।');
+      return;
+    }
+    
+    if (editMatrixGroups.some(g => g.name.toLowerCase() === editNewGroupName.trim().toLowerCase())) {
+      addToast('error', language === 'en' ? 'Group already exists.' : 'এই গ্রুপটি ইতিমধ্যে রয়েছে।');
+      return;
+    }
+    
+    setEditMatrixGroups(prev => [
+      ...prev,
+      {
+        name: editNewGroupName.trim(),
+        values: parsedValues
+      }
+    ]);
+    
+    setEditNewGroupName('');
+    setEditNewGroupValues('');
+  };
+
+  const handleEditRemoveMatrixGroup = (idx: number) => {
+    setEditMatrixGroups(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleEditGenerateMatrix = () => {
+    if (editMatrixGroups.length === 0) {
+      addToast('error', language === 'en' ? 'Please add at least one attribute group first.' : 'অনুগ্রহ করে প্রথমে অন্তত একটি অ্যাট্রিবিউট গ্রুপ যোগ করুন।');
+      return;
+    }
+    
+    const combinations = generateCartesianProduct(editMatrixGroups);
+    const newVariantsList = combinations.map(combo => {
+      const name = Object.entries(combo).map(([k, v]) => `${k}: ${v}`).join(' - ');
+      return {
+        name,
+        minStockAlert: 0,
+        barcode: null,
+        imageUrl: null,
+        attributes: combo,
+        retailPrice: 0,
+        currentStock: 0
+      };
+    });
+    
+    setEditMatrixVariants(prev => {
+      const filtered = newVariantsList.filter(nv => !prev.some(pv => pv.name.toLowerCase() === nv.name.toLowerCase()));
+      return [...prev, ...filtered];
+    });
+    
+    setEditMatrixGroups([]);
+  };
+
+  const handleSaveInlineMatrixVariants = async () => {
+    if (!editProduct || editMatrixVariants.length === 0) return;
+    setSubmitting(true);
+    setFormError(null);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const v of editMatrixVariants) {
+      const res = await addVariantAction({
+        productId: editProduct.id,
+        name: v.name,
+        barcode: v.barcode || null,
+        attributes: v.attributes || null,
+        retailPrice: v.retailPrice || 0,
+        currentStock: v.currentStock || 0
+      });
+      if (res.success) {
+        successCount++;
+      } else {
+        failCount++;
+      }
+    }
+
+    setSubmitting(false);
+
+    if (successCount > 0) {
+      addToast('success', language === 'en' ? `Added ${successCount} variations!` : `${successCount}টি ভেরিয়েশন যোগ হয়েছে!`);
+      if (failCount > 0) {
+        addToast('error', language === 'en' ? `Failed to add ${failCount} variations.` : `${failCount}টি ভেরিয়েশন যোগ করা যায়নি।`);
+      }
+      
+      setEditMatrixVariants([]);
+      setShowInlineAddVariantForm(false);
+
+      const updatedProducts = await getProductsAction();
+      setProductsList(updatedProducts as Product[]);
+      const freshProduct = (updatedProducts as Product[]).find(p => p.id === editProduct.id);
+      if (freshProduct) setEditProduct(freshProduct);
+    } else {
+      addToast('error', language === 'en' ? 'Failed to add variations.' : 'ভেরিয়েশন যোগ করা যায়নি।');
     }
   };
 
@@ -1522,86 +1639,259 @@ export default function ProductsPage() {
                 </div>
 
                 {showInlineAddVariantForm && (
-                  <div className="p-3.5 rounded-xl border border-neutral-850 bg-neutral-950 text-xs space-y-3 animate-fade-in">
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
-                          {language === 'en' ? 'Attribute Name' : 'অ্যাট্রিবিউট নাম'}
-                        </label>
-                        <input
-                          type="text"
-                          value={newVariantAttrKey}
-                          onChange={e => setNewVariantAttrKey(e.target.value)}
-                          placeholder="e.g. Brand, Size"
-                          className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
-                          {language === 'en' ? 'Value *' : 'মান (Value) *'}
-                        </label>
-                        <input
-                          type="text"
-                          value={newVariantAttrVal}
-                          onChange={e => setNewVariantAttrVal(e.target.value)}
-                          placeholder="e.g. BBS, 9W"
-                          className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
-                          {language === 'en' ? 'Retail Price (৳)' : 'খুচরা মূল্য (৳)'}
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={newVariantRetailPrice}
-                          onChange={e => setNewVariantRetailPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
-                          placeholder="0.00"
-                          className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono font-semibold"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
-                          {language === 'en' ? 'Initial Stock' : 'স্টক (Quantity)'}
-                        </label>
-                        <input
-                          type="number"
-                          value={newVariantStock}
-                          onChange={e => setNewVariantStock(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
-                          placeholder="0"
-                          className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono font-semibold"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
-                          {language === 'en' ? 'Barcode' : 'বারকোড'}
-                        </label>
-                        <input
-                          type="text"
-                          value={newVariantBarcode}
-                          onChange={e => setNewVariantBarcode(e.target.value)}
-                          placeholder={language === 'en' ? 'Optional' : 'ঐচ্ছিক'}
-                          className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end gap-2">
+                  <div className="p-3.5 rounded-xl border border-neutral-850 bg-neutral-955 text-xs space-y-4 animate-fade-in">
+                    {/* Tab selector */}
+                    <div className="flex border-b border-neutral-900 select-none">
                       <button
                         type="button"
-                        onClick={() => setShowInlineAddVariantForm(false)}
-                        className="px-2.5 py-1 rounded bg-neutral-900 text-[10px] text-neutral-400 hover:text-neutral-200"
+                        onClick={() => setEditVariantTab('MANUAL')}
+                        className={`flex-1 pb-2 text-[9px] font-bold text-center border-b-2 transition-all uppercase tracking-wider cursor-pointer ${
+                          editVariantTab === 'MANUAL' 
+                            ? 'border-amber-500 text-amber-500' 
+                            : 'border-transparent text-neutral-500 hover:text-neutral-350'
+                        }`}
                       >
-                        {language === 'en' ? 'Cancel' : 'বাতিল'}
+                        {language === 'en' ? 'Manual Addition' : 'ম্যানুয়াল মোড'}
                       </button>
                       <button
                         type="button"
-                        onClick={handleSaveInlineAddVariant}
-                        className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-400 text-black text-[10px] font-bold"
+                        onClick={() => setEditVariantTab('MATRIX')}
+                        className={`flex-1 pb-2 text-[9px] font-bold text-center border-b-2 transition-all uppercase tracking-wider cursor-pointer ${
+                          editVariantTab === 'MATRIX' 
+                            ? 'border-amber-500 text-amber-500' 
+                            : 'border-transparent text-neutral-500 hover:text-neutral-350'
+                        }`}
                       >
-                        {language === 'en' ? 'Add' : 'যোগ করুন'}
+                        {language === 'en' ? 'Attribute Matrix' : 'অ্যাট্রিবিউট ম্যাট্রিক্স মোড'}
                       </button>
                     </div>
+
+                    {editVariantTab === 'MANUAL' ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
+                              {language === 'en' ? 'Attribute Name' : 'অ্যাট্রিবিউট নাম'}
+                            </label>
+                            <input
+                              type="text"
+                              value={newVariantAttrKey}
+                              onChange={e => setNewVariantAttrKey(e.target.value)}
+                              placeholder="e.g. Brand, Size"
+                              className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
+                              {language === 'en' ? 'Value *' : 'মান (Value) *'}
+                            </label>
+                            <input
+                              type="text"
+                              value={newVariantAttrVal}
+                              onChange={e => setNewVariantAttrVal(e.target.value)}
+                              placeholder="e.g. BBS, 9W"
+                              className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
+                              {language === 'en' ? 'Retail Price (৳)' : 'খুচরা মূল্য (৳)'}
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={newVariantRetailPrice}
+                              onChange={e => setNewVariantRetailPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                              placeholder="0.00"
+                              className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono font-semibold"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
+                              {language === 'en' ? 'Initial Stock' : 'স্টক (Quantity)'}
+                            </label>
+                            <input
+                              type="number"
+                              value={newVariantStock}
+                              onChange={e => setNewVariantStock(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
+                              placeholder="0"
+                              className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono font-semibold"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
+                              {language === 'en' ? 'Barcode' : 'বারকোড'}
+                            </label>
+                            <input
+                              type="text"
+                              value={newVariantBarcode}
+                              onChange={e => setNewVariantBarcode(e.target.value)}
+                              placeholder={language === 'en' ? 'Optional' : 'ঐচ্ছিক'}
+                              className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowInlineAddVariantForm(false)}
+                            className="px-2.5 py-1 rounded bg-neutral-900 text-[10px] text-neutral-450 hover:text-neutral-255 cursor-pointer"
+                          >
+                            {language === 'en' ? 'Cancel' : 'বাতিল'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveInlineAddVariant}
+                            className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-400 text-black text-[10px] font-bold cursor-pointer"
+                          >
+                            {language === 'en' ? 'Add' : 'যোগ করুন'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="p-3 rounded-lg border border-neutral-900 bg-neutral-955 space-y-3">
+                          <span className="text-[10px] font-bold text-neutral-450 uppercase tracking-wide">
+                            {language === 'en' ? 'Add Attribute Group' : 'অ্যাট্রিবিউট গ্রুপ যোগ করুন'}
+                          </span>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold block">Group (e.g. Size, Color)</label>
+                              <input
+                                type="text"
+                                value={editNewGroupName}
+                                onChange={e => setEditNewGroupName(e.target.value)}
+                                placeholder="e.g. Size"
+                                className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold block">Values (Comma-separated)</label>
+                              <input
+                                type="text"
+                                value={editNewGroupValues}
+                                onChange={e => setEditNewGroupValues(e.target.value)}
+                                placeholder="e.g. Red, Black, Yellow"
+                                className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end pt-1">
+                            <button
+                              type="button"
+                              onClick={handleEditAddMatrixGroup}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-[10px] text-neutral-300 font-bold transition-all cursor-pointer"
+                            >
+                              <Plus className="h-3 w-3" />
+                              {language === 'en' ? 'Add Group' : 'গ্রুপ যোগ করুন'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Active Matrix Groups */}
+                        {editMatrixGroups.length > 0 && (
+                          <div className="space-y-2">
+                            <span className="text-[9px] uppercase font-bold text-neutral-500 tracking-wider">Configure Groups:</span>
+                            <div className="flex flex-wrap gap-2">
+                              {editMatrixGroups.map((group, idx) => (
+                                <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-neutral-950 border border-neutral-900 text-[10px]">
+                                  <span className="font-bold text-neutral-300">{group.name}:</span>
+                                  <span className="text-neutral-450 font-mono text-[9px]">{group.values.join(', ')}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditRemoveMatrixGroup(idx)}
+                                    className="p-0.5 text-rose-500 hover:bg-rose-955/20 rounded transition-all ml-1.5 cursor-pointer"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex justify-end pt-2 border-t border-neutral-900">
+                              <button
+                                type="button"
+                                onClick={handleEditGenerateMatrix}
+                                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-black transition-all shadow-md cursor-pointer"
+                              >
+                                {language === 'en' ? 'Generate Combinations' : 'কম্বিনেশন জেনারেট করুন'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Generated Combinations Preview List */}
+                        {editMatrixVariants.length > 0 && (
+                          <div className="space-y-2 border-t border-neutral-900 pt-3">
+                            <span className="text-[9.5px] uppercase font-bold text-neutral-500 tracking-wider">Generated Combinations Preview:</span>
+                            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                              {editMatrixVariants.map((v, idx) => (
+                                <div key={idx} className="p-2.5 rounded-lg bg-neutral-900 border border-neutral-850 space-y-2">
+                                  <div className="font-bold text-[11px] text-neutral-300">{v.name}</div>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <div className="space-y-1">
+                                      <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold block">Retail Price</label>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={v.retailPrice || ''}
+                                        placeholder="0.00"
+                                        onChange={(e) => {
+                                          const val = parseFloat(e.target.value) || 0;
+                                          setEditMatrixVariants(prev => prev.map((item, i) => i === idx ? { ...item, retailPrice: val } : item));
+                                        }}
+                                        className="w-full px-2 py-1 rounded bg-neutral-950 border border-neutral-800 text-[10px] text-neutral-200 outline-none focus:border-amber-500 font-mono font-semibold"
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold block">Initial Stock</label>
+                                      <input
+                                        type="number"
+                                        value={v.currentStock || ''}
+                                        placeholder="0"
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value) || 0;
+                                          setEditMatrixVariants(prev => prev.map((item, i) => i === idx ? { ...item, currentStock: val } : item));
+                                        }}
+                                        className="w-full px-2 py-1 rounded bg-neutral-950 border border-neutral-800 text-[10px] text-neutral-200 outline-none focus:border-amber-500 font-mono font-semibold"
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold block">Barcode</label>
+                                      <input
+                                        type="text"
+                                        value={v.barcode || ''}
+                                        placeholder="Optional"
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setEditMatrixVariants(prev => prev.map((item, i) => i === idx ? { ...item, barcode: val } : item));
+                                        }}
+                                        className="w-full px-2 py-1 rounded bg-neutral-950 border border-neutral-800 text-[10px] text-neutral-200 outline-none focus:border-amber-500 font-mono"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex justify-end gap-2 pt-2 border-t border-neutral-900">
+                              <button
+                                type="button"
+                                onClick={() => setEditMatrixVariants([])}
+                                className="px-3 py-1.5 rounded-lg border border-neutral-850 text-[10px] text-neutral-450 hover:text-neutral-250 cursor-pointer"
+                              >
+                                {language === 'en' ? 'Clear' : 'মুছে ফেলুন'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleSaveInlineMatrixVariants}
+                                className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-[10px] font-bold transition-all cursor-pointer"
+                              >
+                                {language === 'en' ? `Save ${editMatrixVariants.length} Variations` : `${editMatrixVariants.length}টি ভেরিয়েশন সংরক্ষণ করুন`}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 

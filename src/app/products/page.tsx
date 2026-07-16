@@ -107,7 +107,8 @@ export default function ProductsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm, setAddForm] = useState(FORM_DEFAULTS);
   const [addVariants, setAddVariants] = useState<Variant[]>([]);
-  const [tempVariantName, setTempVariantName] = useState('');
+  const [tempVariantAttrKey, setTempVariantAttrKey] = useState('');
+  const [tempVariantAttrVal, setTempVariantAttrVal] = useState('');
   const [tempVariantBarcode, setTempVariantBarcode] = useState('');
   const [tempVariantMinAlert, setTempVariantMinAlert] = useState(0);
   const [tempVariantRetailPrice, setTempVariantRetailPrice] = useState<number | ''>('');
@@ -128,14 +129,16 @@ export default function ProductsPage() {
 
   // Inline variant edit state inside Edit Modal
   const [editingVariantId, setEditingVariantId] = useState<number | null>(null);
-  const [editingVariantName, setEditingVariantName] = useState('');
+  const [editingVariantAttrKey, setEditingVariantAttrKey] = useState('');
+  const [editingVariantAttrVal, setEditingVariantAttrVal] = useState('');
   const [editingVariantBarcode, setEditingVariantBarcode] = useState('');
   const [editingVariantRetailPrice, setEditingVariantRetailPrice] = useState<number | ''>('');
   const [deletingVariantId, setDeletingVariantId] = useState<number | null>(null);
 
   // Inline variant add state inside Edit Modal
   const [showInlineAddVariantForm, setShowInlineAddVariantForm] = useState(false);
-  const [newVariantName, setNewVariantName] = useState('');
+  const [newVariantAttrKey, setNewVariantAttrKey] = useState('');
+  const [newVariantAttrVal, setNewVariantAttrVal] = useState('');
   const [newVariantBarcode, setNewVariantBarcode] = useState('');
   const [newVariantRetailPrice, setNewVariantRetailPrice] = useState<number | ''>('');
   const [newVariantStock, setNewVariantStock] = useState<number | ''>('');
@@ -183,26 +186,30 @@ export default function ProductsPage() {
 
   // Add Variant helper in Modal
   const handleAddVariantItem = () => {
-    if (!tempVariantName.trim()) {
-      addToast('error', language === 'en' ? 'Variant name is required' : 'ভেরিয়েশনের নাম প্রয়োজন');
+    const attrKey = tempVariantAttrKey.trim() || 'Option';
+    const attrVal = tempVariantAttrVal.trim();
+
+    if (!attrVal) {
+      addToast('error', language === 'en' ? 'Variation value is required' : 'ভেরিয়েশনের মান প্রয়োজন');
       return;
     }
-    if (addVariants.some(v => v.name.toLowerCase() === tempVariantName.trim().toLowerCase())) {
-      addToast('error', language === 'en' ? 'Duplicate variant name' : 'একই ভেরিয়েশন নাম ইতিমধ্যে রয়েছে');
+    if (addVariants.some(v => v.name.toLowerCase() === attrVal.toLowerCase())) {
+      addToast('error', language === 'en' ? 'Duplicate variant' : 'একই ভেরিয়েশন ইতিমধ্যে রয়েছে');
       return;
     }
     setAddVariants(prev => [
       ...prev,
       {
-        name: tempVariantName.trim(),
+        name: attrVal,
         barcode: tempVariantBarcode.trim() || null,
         minStockAlert: tempVariantMinAlert,
         imageUrl: tempVariantImageUrl,
-        attributes: null,
+        attributes: { [attrKey]: attrVal },
         retailPrice: tempVariantRetailPrice === '' ? 0 : Number(tempVariantRetailPrice)
       }
     ]);
-    setTempVariantName('');
+    setTempVariantAttrKey('');
+    setTempVariantAttrVal('');
     setTempVariantBarcode('');
     setTempVariantMinAlert(0);
     setTempVariantRetailPrice('');
@@ -388,23 +395,27 @@ export default function ProductsPage() {
   // Save new variant added inline in edit modal
   const handleSaveInlineAddVariant = async () => {
     if (!editProduct) return;
-    if (!newVariantName.trim()) {
-      addToast('error', language === 'en' ? 'Variant name is required.' : 'ভেরিয়েশনের নাম লিখুন।');
+    const attrKey = newVariantAttrKey.trim() || 'Option';
+    const attrVal = newVariantAttrVal.trim();
+
+    if (!attrVal) {
+      addToast('error', language === 'en' ? 'Variation value is required.' : 'ভেরিয়েশনের মান লিখুন।');
       return;
     }
 
     const res = await addVariantAction({
       productId: editProduct.id,
-      name: newVariantName.trim(),
+      name: attrVal,
       barcode: newVariantBarcode.trim() || null,
-      attributes: null,
+      attributes: { [attrKey]: attrVal },
       retailPrice: newVariantRetailPrice === '' ? 0 : Number(newVariantRetailPrice),
       currentStock: newVariantStock === '' ? 0 : Number(newVariantStock)
     });
 
     if (res.success) {
       addToast('success', language === 'en' ? 'Variant added!' : 'ভেরিয়েশন যোগ হয়েছে!');
-      setNewVariantName('');
+      setNewVariantAttrKey('');
+      setNewVariantAttrVal('');
       setNewVariantBarcode('');
       setNewVariantRetailPrice('');
       setNewVariantStock('');
@@ -421,14 +432,18 @@ export default function ProductsPage() {
 
   // Save inline variant edit
   const handleSaveInlineVariantEdit = async (variantId: number) => {
-    if (!editingVariantName.trim()) {
-      addToast('error', language === 'en' ? 'Variant name is required.' : 'ভেরিয়েশনের নাম লিখুন।');
+    const attrKey = editingVariantAttrKey.trim() || 'Option';
+    const attrVal = editingVariantAttrVal.trim();
+
+    if (!attrVal) {
+      addToast('error', language === 'en' ? 'Variation value is required.' : 'ভেরিয়েশনের মান লিখুন।');
       return;
     }
     const res = await updateVariantAction(variantId, {
-      name: editingVariantName.trim(),
+      name: attrVal,
       barcode: editingVariantBarcode.trim() || null,
-      retailPrice: editingVariantRetailPrice === '' ? 0 : Number(editingVariantRetailPrice)
+      retailPrice: editingVariantRetailPrice === '' ? 0 : Number(editingVariantRetailPrice),
+      attributes: { [attrKey]: attrVal }
     });
 
     if (res.success) {
@@ -1084,22 +1099,34 @@ export default function ProductsPage() {
                 {/* Tab Contents: MANUAL MODE */}
                 {variantTab === 'MANUAL' && (
                   <div className="space-y-3 pt-1">
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       <div className="space-y-1">
                         <label className="text-[10px] font-semibold text-neutral-500 uppercase">
-                          {language === 'en' ? 'Variation Name' : 'ভেরিয়েশনের নাম'}
+                          {language === 'en' ? 'Attribute Name' : 'অ্যাট্রিবিউট নাম'}
                         </label>
                         <input
                           type="text"
-                          value={tempVariantName}
-                          onChange={e => setTempVariantName(e.target.value)}
-                          placeholder="e.g. 20W White, 22W CoolDay"
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-855 bg-neutral-900 text-xs text-neutral-200 outline-none focus:border-amber-500 font-semibold"
+                          value={tempVariantAttrKey}
+                          onChange={e => setTempVariantAttrKey(e.target.value)}
+                          placeholder="e.g. Brand, Size, Color"
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-855 bg-neutral-900 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
                         />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-semibold text-neutral-500 uppercase">
-                          {language === 'en' ? 'Retail Price (৳)' : 'খুচরা বিক্রয় মূল্য (৳)'}
+                          {language === 'en' ? 'Value *' : 'মান (Value) *'}
+                        </label>
+                        <input
+                          type="text"
+                          value={tempVariantAttrVal}
+                          onChange={e => setTempVariantAttrVal(e.target.value)}
+                          placeholder="e.g. BBS, 1.5 sqmm"
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-855 bg-neutral-900 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-neutral-500 uppercase">
+                          {language === 'en' ? 'Retail Price (৳)' : 'খুচরা মূল্য (৳)'}
                         </label>
                         <input
                           type="number"
@@ -1107,7 +1134,7 @@ export default function ProductsPage() {
                           value={tempVariantRetailPrice}
                           onChange={e => setTempVariantRetailPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
                           placeholder="0.00"
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-855 bg-neutral-900 text-xs text-neutral-200 outline-none focus:border-amber-500 font-mono font-semibold"
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-855 bg-neutral-900 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono font-semibold"
                         />
                       </div>
                       <div className="space-y-1">
@@ -1468,7 +1495,8 @@ export default function ProductsPage() {
                     type="button"
                     onClick={() => {
                       setShowInlineAddVariantForm(!showInlineAddVariantForm);
-                      setNewVariantName('');
+                      setNewVariantAttrKey('');
+                      setNewVariantAttrVal('');
                       setNewVariantBarcode('');
                       setNewVariantRetailPrice('');
                       setNewVariantStock('');
@@ -1482,16 +1510,28 @@ export default function ProductsPage() {
 
                 {showInlineAddVariantForm && (
                   <div className="p-3.5 rounded-xl border border-neutral-850 bg-neutral-950 text-xs space-y-3 animate-fade-in">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                       <div className="space-y-1">
                         <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
-                          {language === 'en' ? 'Brand / Spec Name *' : 'কোম্পানি / স্পেক নাম *'}
+                          {language === 'en' ? 'Attribute Name' : 'অ্যাট্রিবিউট নাম'}
                         </label>
                         <input
                           type="text"
-                          value={newVariantName}
-                          onChange={e => setNewVariantName(e.target.value)}
-                          placeholder={language === 'en' ? 'e.g. BBS, 9W' : 'যেমন: BBS, ৯ ওয়াট'}
+                          value={newVariantAttrKey}
+                          onChange={e => setNewVariantAttrKey(e.target.value)}
+                          placeholder="e.g. Brand, Size"
+                          className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
+                          {language === 'en' ? 'Value *' : 'মান (Value) *'}
+                        </label>
+                        <input
+                          type="text"
+                          value={newVariantAttrVal}
+                          onChange={e => setNewVariantAttrVal(e.target.value)}
+                          placeholder="e.g. BBS, 9W"
                           className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
                         />
                       </div>
@@ -1562,14 +1602,25 @@ export default function ProductsPage() {
                         <div key={v.id} className="p-3 rounded-xl border border-neutral-900 bg-neutral-955 text-xs transition-all">
                           {isEditingThis ? (
                             <div className="space-y-2.5">
-                              <div className="grid grid-cols-3 gap-2">
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                 <div className="space-y-1">
-                                  <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">Name</label>
+                                  <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">Attribute Name</label>
                                   <input
                                     type="text"
-                                    value={editingVariantName}
-                                    onChange={e => setEditingVariantName(e.target.value)}
-                                    className="w-full px-2 py-1 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
+                                    value={editingVariantAttrKey}
+                                    onChange={e => setEditingVariantAttrKey(e.target.value)}
+                                    placeholder="e.g. Brand, Size"
+                                    className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">Value *</label>
+                                  <input
+                                    type="text"
+                                    value={editingVariantAttrVal}
+                                    onChange={e => setEditingVariantAttrVal(e.target.value)}
+                                    placeholder="e.g. BBS, 9W"
+                                    className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
                                   />
                                 </div>
                                 <div className="space-y-1">
@@ -1579,7 +1630,7 @@ export default function ProductsPage() {
                                     step="0.01"
                                     value={editingVariantRetailPrice}
                                     onChange={e => setEditingVariantRetailPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
-                                    className="w-full px-2 py-1 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono font-semibold"
+                                    className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono font-semibold"
                                   />
                                 </div>
                                 <div className="space-y-1">
@@ -1588,7 +1639,7 @@ export default function ProductsPage() {
                                     type="text"
                                     value={editingVariantBarcode}
                                     onChange={e => setEditingVariantBarcode(e.target.value)}
-                                    className="w-full px-2 py-1 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono"
+                                    className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono"
                                   />
                                 </div>
                               </div>
@@ -1653,8 +1704,11 @@ export default function ProductsPage() {
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    const firstKey = v.attributes ? Object.keys(v.attributes)[0] : 'Option';
+                                    const firstVal = v.attributes ? v.attributes[firstKey] : v.name;
                                     setEditingVariantId(v.id!);
-                                    setEditingVariantName(v.name);
+                                    setEditingVariantAttrKey(firstKey);
+                                    setEditingVariantAttrVal(firstVal);
                                     setEditingVariantBarcode(v.barcode || '');
                                     setEditingVariantRetailPrice(v.retailPrice || '');
                                   }}

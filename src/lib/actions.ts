@@ -1687,7 +1687,7 @@ export async function addVariantAction(formData: {
 
 // 14e. UPDATE VARIANT
 export async function updateVariantAction(variantId: number, formData: {
-  name?: string; minStockAlert?: number; barcode?: string | null; imageUrl?: string | null; retailPrice?: number;
+  name?: string; minStockAlert?: number; barcode?: string | null; imageUrl?: string | null; retailPrice?: number; attributes?: Record<string, string> | null;
 }): Promise<{ success: boolean; error?: string }> {
   await checkPermission('allowStockEdit', 'edit product variants');
 
@@ -1708,6 +1708,7 @@ export async function updateVariantAction(variantId: number, formData: {
       ...(formData.barcode !== undefined && { barcode: formData.barcode?.trim() || null }),
       ...(formData.imageUrl !== undefined && { imageUrl: formData.imageUrl }),
       ...(formData.retailPrice !== undefined && { retailPrice: String(formData.retailPrice) }),
+      ...(formData.attributes !== undefined && { attributes: formData.attributes }),
     }).where(eq(productVariants.id, variantId));
     revalidatePath('/products');
     return { success: true };

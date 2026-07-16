@@ -133,6 +133,12 @@ export default function ProductsPage() {
   const [editingVariantRetailPrice, setEditingVariantRetailPrice] = useState<number | ''>('');
   const [deletingVariantId, setDeletingVariantId] = useState<number | null>(null);
 
+  // Inline variant add state inside Edit Modal
+  const [showInlineAddVariantForm, setShowInlineAddVariantForm] = useState(false);
+  const [newVariantName, setNewVariantName] = useState('');
+  const [newVariantBarcode, setNewVariantBarcode] = useState('');
+  const [newVariantRetailPrice, setNewVariantRetailPrice] = useState<number | ''>('');
+
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -378,27 +384,29 @@ export default function ProductsPage() {
     }
   };
 
-  // Add new variant inline in edit modal
-  const handleAddNewVariantToExisting = async () => {
+  // Save new variant added inline in edit modal
+  const handleSaveInlineAddVariant = async () => {
     if (!editProduct) return;
-    const name = prompt(language === 'en' ? 'Enter Variant Name (e.g. 12W, White):' : 'ভেরিয়েশনের নাম লিখুন:');
-    if (!name || !name.trim()) return;
-
-    const barcode = prompt(language === 'en' ? 'Enter Barcode (optional):' : 'বারকোড লিখুন (ঐচ্ছিক):');
-
-    const retailPriceStr = prompt(language === 'en' ? 'Enter Retail Price (optional):' : 'খুচরা বিক্রয় মূল্য লিখুন (ঐচ্ছিক):');
-    const retailPrice = retailPriceStr ? parseFloat(retailPriceStr) || 0 : 0;
+    if (!newVariantName.trim()) {
+      addToast('error', language === 'en' ? 'Variant name is required.' : 'ভেরিয়েশনের নাম লিখুন।');
+      return;
+    }
 
     const res = await addVariantAction({
       productId: editProduct.id,
-      name: name.trim(),
-      barcode: barcode?.trim() || null,
+      name: newVariantName.trim(),
+      barcode: newVariantBarcode.trim() || null,
       attributes: null,
-      retailPrice
+      retailPrice: newVariantRetailPrice === '' ? 0 : Number(newVariantRetailPrice)
     });
 
     if (res.success) {
       addToast('success', language === 'en' ? 'Variant added!' : 'ভেরিয়েশন যোগ হয়েছে!');
+      setNewVariantName('');
+      setNewVariantBarcode('');
+      setNewVariantRetailPrice('');
+      setShowInlineAddVariantForm(false);
+      
       const updatedProducts = await getProductsAction();
       setProductsList(updatedProducts as Product[]);
       const freshProduct = (updatedProducts as Product[]).find(p => p.id === editProduct.id);
@@ -1455,13 +1463,78 @@ export default function ProductsPage() {
                   </span>
                   <button
                     type="button"
-                    onClick={handleAddNewVariantToExisting}
+                    onClick={() => {
+                      setShowInlineAddVariantForm(!showInlineAddVariantForm);
+                      setNewVariantName('');
+                      setNewVariantBarcode('');
+                      setNewVariantRetailPrice('');
+                    }}
                     className="flex items-center gap-1 text-[10px] text-amber-500 hover:text-amber-400 font-semibold transition-colors"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     {language === 'en' ? 'Add Variant' : 'নতুন ভেরিয়েশন'}
                   </button>
                 </div>
+
+                {showInlineAddVariantForm && (
+                  <div className="p-3.5 rounded-xl border border-neutral-850 bg-neutral-950 text-xs space-y-3 animate-fade-in">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
+                          {language === 'en' ? 'Name *' : 'নাম *'}
+                        </label>
+                        <input
+                          type="text"
+                          value={newVariantName}
+                          onChange={e => setNewVariantName(e.target.value)}
+                          placeholder={language === 'en' ? 'e.g. 12W' : 'যেমন: ১২ ওয়াট'}
+                          className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
+                          {language === 'en' ? 'Retail Price (৳)' : 'বিক্রয় মূল্য (৳)'}
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={newVariantRetailPrice}
+                          onChange={e => setNewVariantRetailPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                          placeholder="0.00"
+                          className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
+                          {language === 'en' ? 'Barcode' : 'বারকোড'}
+                        </label>
+                        <input
+                          type="text"
+                          value={newVariantBarcode}
+                          onChange={e => setNewVariantBarcode(e.target.value)}
+                          placeholder={language === 'en' ? 'Optional' : 'ঐচ্ছিক'}
+                          className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowInlineAddVariantForm(false)}
+                        className="px-2.5 py-1 rounded bg-neutral-900 text-[10px] text-neutral-400 hover:text-neutral-200"
+                      >
+                        {language === 'en' ? 'Cancel' : 'বাতিল'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveInlineAddVariant}
+                        className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-400 text-black text-[10px] font-bold"
+                      >
+                        {language === 'en' ? 'Add' : 'যোগ করুন'}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {editProduct.variants && editProduct.variants.length > 0 ? (
                   <div className="space-y-2">

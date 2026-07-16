@@ -1324,6 +1324,19 @@ export default function ProductsPage() {
                           placeholder="e.g. Brand, Size, Color"
                           className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-855 bg-neutral-900 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
                         />
+                            {/* Suggestion Tags */}
+                            <div className="flex gap-1.5 mt-1 select-none">
+                              {['Brand', 'Size', 'Color'].map(tag => (
+                                <button
+                                  key={tag}
+                                  type="button"
+                                  onClick={() => setTempVariantAttrKey(tag)}
+                                  className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-neutral-450 hover:text-neutral-200 transition-all cursor-pointer"
+                                >
+                                  {tag === 'Brand' ? (language === 'en' ? 'Brand' : 'ব্র্যান্ড') : tag === 'Size' ? (language === 'en' ? 'Size' : 'সাইজ') : (language === 'en' ? 'Color' : 'কালার')}
+                                </button>
+                              ))}
+                            </div>
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-semibold text-neutral-500 uppercase">
@@ -1409,6 +1422,19 @@ export default function ProductsPage() {
                             placeholder="e.g. Size"
                             className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-855 bg-neutral-900 text-xs text-neutral-202 outline-none focus:border-amber-500"
                           />
+                            {/* Suggestion Tags */}
+                            <div className="flex gap-1.5 mt-1 select-none">
+                              {['Brand', 'Size', 'Color'].map(tag => (
+                                <button
+                                  key={tag}
+                                  type="button"
+                                  onClick={() => setNewGroupName(tag)}
+                                  className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-neutral-450 hover:text-neutral-200 transition-all cursor-pointer"
+                                >
+                                  {tag === 'Brand' ? (language === 'en' ? 'Brand' : 'ব্র্যান্ড') : tag === 'Size' ? (language === 'en' ? 'Size' : 'সাইজ') : (language === 'en' ? 'Color' : 'কালার')}
+                                </button>
+                              ))}
+                            </div>
                         </div>
                         <div className="space-y-1">
                           <label className="text-[9px] font-semibold text-neutral-500 uppercase">Values (Comma-separated)</label>
@@ -1769,6 +1795,19 @@ export default function ProductsPage() {
                               placeholder="e.g. Brand, Size"
                               className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
                             />
+                            {/* Suggestion Tags */}
+                            <div className="flex gap-1.5 mt-1 select-none">
+                              {['Brand', 'Size', 'Color'].map(tag => (
+                                <button
+                                  key={tag}
+                                  type="button"
+                                  onClick={() => setNewVariantAttrKey(tag)}
+                                  className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-neutral-450 hover:text-neutral-200 transition-all cursor-pointer"
+                                >
+                                  {tag === 'Brand' ? (language === 'en' ? 'Brand' : 'ব্র্যান্ড') : tag === 'Size' ? (language === 'en' ? 'Size' : 'সাইজ') : (language === 'en' ? 'Color' : 'কালার')}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                           <div className="space-y-1">
                             <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">
@@ -1853,6 +1892,19 @@ export default function ProductsPage() {
                                 placeholder="e.g. Size"
                                 className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500"
                               />
+                            {/* Suggestion Tags */}
+                            <div className="flex gap-1.5 mt-1 select-none">
+                              {['Brand', 'Size', 'Color'].map(tag => (
+                                <button
+                                  key={tag}
+                                  type="button"
+                                  onClick={() => setEditNewGroupName(tag)}
+                                  className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-neutral-450 hover:text-neutral-200 transition-all cursor-pointer"
+                                >
+                                  {tag === 'Brand' ? (language === 'en' ? 'Brand' : 'ব্র্যান্ড') : tag === 'Size' ? (language === 'en' ? 'Size' : 'সাইজ') : (language === 'en' ? 'Color' : 'কালার')}
+                                </button>
+                              ))}
+                            </div>
                             </div>
                             <div className="space-y-1">
                               <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold block">Values (Comma-separated)</label>
@@ -1985,150 +2037,176 @@ export default function ProductsPage() {
                 )}
 
                 {editProduct.variants && editProduct.variants.length > 0 ? (
-                  <div className="space-y-2">
-                    {editProduct.variants.map((v) => {
-                      const isEditingThis = editingVariantId === v.id;
-                      const isDeletingThis = deletingVariantId === v.id;
+                  <div className="overflow-x-auto rounded-xl border border-neutral-900 bg-neutral-955/40">
+                    <table className="w-full border-collapse text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-neutral-900 bg-neutral-950/60 font-bold text-neutral-450 uppercase text-[9px] tracking-wider">
+                          <th className="p-3">{language === 'en' ? 'Variation' : 'ভেরিয়েশন'}</th>
+                          <th className="p-3 text-right w-20">{language === 'en' ? 'Stock' : 'স্টক'}</th>
+                          <th className="p-3 text-right w-28">{language === 'en' ? 'Avg Cost' : 'গড় ক্রয়মূল্য'}</th>
+                          <th className="p-3 text-right w-28">{language === 'en' ? 'Retail Price' : 'বিক্রয় মূল্য'}</th>
+                          <th className="p-3 w-40">{language === 'en' ? 'Barcode' : 'বারকোড'}</th>
+                          <th className="p-3 w-20 text-center"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-900/60 text-neutral-300">
+                        {editProduct.variants.map((v) => {
+                          const isEditingThis = editingVariantId === v.id;
+                          const isDeletingThis = deletingVariantId === v.id;
 
-                      return (
-                        <div key={v.id} className="p-3 rounded-xl border border-neutral-900 bg-neutral-955 text-xs transition-all">
-                          {isEditingThis ? (
-                            <div className="space-y-2.5">
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                <div className="space-y-1">
-                                  <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">Attribute Name</label>
-                                  <input
-                                    type="text"
-                                    value={editingVariantAttrKey}
-                                    onChange={e => setEditingVariantAttrKey(e.target.value)}
-                                    placeholder="e.g. Brand, Size"
-                                    className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
-                                  />
+                          if (isEditingThis) {
+                            return (
+                              <tr key={v.id} className="bg-neutral-900/40">
+                                <td colSpan={6} className="p-3">
+                                  <div className="space-y-2.5">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                      <div className="space-y-1">
+                                        <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold block">Attribute Name</label>
+                                        <input
+                                          type="text"
+                                          value={editingVariantAttrKey}
+                                          onChange={e => setEditingVariantAttrKey(e.target.value)}
+                                          className="w-full px-2 py-1 rounded bg-neutral-955 border border-neutral-800 text-xs text-neutral-202 outline-none focus:border-amber-500"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold block">Value *</label>
+                                        <input
+                                          type="text"
+                                          value={editingVariantAttrVal}
+                                          onChange={e => setEditingVariantAttrVal(e.target.value)}
+                                          className="w-full px-2 py-1 rounded bg-neutral-955 border border-neutral-800 text-xs text-neutral-202 outline-none focus:border-amber-500 font-bold text-amber-500"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold block">Retail Price (৳)</label>
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          value={editingVariantRetailPrice}
+                                          onChange={e => setEditingVariantRetailPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                                          className="w-full px-2 py-1 rounded bg-neutral-955 border border-neutral-800 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono font-semibold"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold block">Barcode</label>
+                                        <input
+                                          type="text"
+                                          value={editingVariantBarcode}
+                                          onChange={e => setEditingVariantBarcode(e.target.value)}
+                                          className="w-full px-2 py-1 rounded bg-neutral-955 border border-neutral-800 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="flex justify-end gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingVariantId(null)}
+                                        className="px-2.5 py-1 rounded bg-neutral-900 text-[10px] text-neutral-400 hover:text-neutral-200 cursor-pointer"
+                                      >
+                                        {language === 'en' ? 'Cancel' : 'বাতিল'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSaveInlineVariantEdit(v.id!)}
+                                        className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-400 text-black text-[10px] font-bold cursor-pointer"
+                                      >
+                                        {language === 'en' ? 'Save' : 'সংরক্ষণ'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          if (isDeletingThis) {
+                            return (
+                              <tr key={v.id} className="bg-rose-955/10">
+                                <td colSpan={6} className="p-3">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-rose-400 font-bold text-[10.5px]">
+                                      {language === 'en' ? 'Delete this variant?' : 'ডিলিট করতে চান?'}
+                                    </span>
+                                    <div className="flex gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setDeletingVariantId(null)}
+                                        className="px-2.5 py-1 rounded bg-neutral-900 text-[10px] text-neutral-455 hover:text-neutral-255 cursor-pointer"
+                                      >
+                                        {language === 'en' ? 'No' : 'না'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteVariantItemConfirm(v.id!)}
+                                        className="px-2.5 py-1 rounded bg-rose-900 hover:bg-rose-800 text-rose-100 text-[10px] font-bold cursor-pointer"
+                                      >
+                                        {language === 'en' ? 'Yes, Delete' : 'হ্যাঁ'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return (
+                            <tr key={v.id} className="hover:bg-neutral-900/10 transition-colors">
+                              <td className="p-3 font-bold text-neutral-200">
+                                <div className="flex flex-col gap-0.5">
+                                  <span>{v.name}</span>
+                                  {v.attributes && (
+                                    <div className="flex flex-wrap gap-1 mt-0.5">
+                                      {Object.entries(v.attributes).map(([key, val]) => {
+                                        const lowerName = v.name.toLowerCase();
+                                        if (lowerName.includes(key.toLowerCase()) && lowerName.includes(val.toLowerCase())) {
+                                          return null;
+                                        }
+                                        return (
+                                          <span key={key} className="text-[7.5px] font-extrabold bg-neutral-900 border border-neutral-800 text-neutral-450 px-1 py-0.5 rounded tracking-wide uppercase">
+                                            {key}: {val}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="space-y-1">
-                                  <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">Value *</label>
-                                  <input
-                                    type="text"
-                                    value={editingVariantAttrVal}
-                                    onChange={e => setEditingVariantAttrVal(e.target.value)}
-                                    placeholder="e.g. BBS, 9W"
-                                    className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
-                                  />
+                              </td>
+                              <td className="p-3 text-right font-mono font-semibold text-neutral-350">{v.currentStock ?? 0}</td>
+                              <td className="p-3 text-right font-mono text-neutral-400">৳{v.movingAverageCost?.toFixed(2) ?? '0.00'}</td>
+                              <td className="p-3 text-right font-mono font-bold text-amber-500">৳{(v.retailPrice || 0).toFixed(2)}</td>
+                              <td className="p-3 font-mono text-neutral-500">{v.barcode || '—'}</td>
+                              <td className="p-3 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const firstKey = v.attributes ? Object.keys(v.attributes)[0] : 'Brand';
+                                      const firstVal = v.attributes ? v.attributes[firstKey] : v.name;
+                                      setEditingVariantId(v.id!);
+                                      setEditingVariantAttrKey(firstKey);
+                                      setEditingVariantAttrVal(firstVal);
+                                      setEditingVariantBarcode(v.barcode || '');
+                                      setEditingVariantRetailPrice(v.retailPrice || '');
+                                    }}
+                                    className="p-1 rounded bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-amber-500 transition-all cursor-pointer"
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeletingVariantId(v.id!)}
+                                    className="p-1 rounded bg-neutral-900 border border-neutral-800 hover:border-rose-900 text-neutral-450 hover:text-rose-500 transition-all cursor-pointer"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
                                 </div>
-                                <div className="space-y-1">
-                                  <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">Retail Price (৳)</label>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    value={editingVariantRetailPrice}
-                                    onChange={e => setEditingVariantRetailPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
-                                    className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono font-semibold"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">Barcode</label>
-                                  <input
-                                    type="text"
-                                    value={editingVariantBarcode}
-                                    onChange={e => setEditingVariantBarcode(e.target.value)}
-                                    className="w-full px-2 py-1.5 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono"
-                                  />
-                                </div>
-                              </div>
-                              <div className="flex justify-end gap-2 pt-1">
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingVariantId(null)}
-                                  className="px-2.5 py-1 rounded bg-neutral-900 text-[10px] text-neutral-400 hover:text-neutral-200"
-                                >
-                                  {language === 'en' ? 'Cancel' : 'বাতিল'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleSaveInlineVariantEdit(v.id!)}
-                                  className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-400 text-black text-[10px] font-bold"
-                                >
-                                  {language === 'en' ? 'Save' : 'সংরক্ষণ'}
-                                </button>
-                              </div>
-                            </div>
-                          ) : isDeletingThis ? (
-                            <div className="flex items-center justify-between py-1">
-                              <span className="text-rose-400 font-semibold text-[11px]">
-                                {language === 'en' ? 'Delete this variant?' : 'ডিলিট করতে চান?'}
-                              </span>
-                              <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => setDeletingVariantId(null)}
-                                  className="px-2.5 py-1 rounded bg-neutral-900 text-[10px] text-neutral-400 hover:text-neutral-200"
-                                >
-                                  {language === 'en' ? 'No' : 'না'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteVariantItemConfirm(v.id!)}
-                                  className="px-2.5 py-1 rounded bg-rose-900 hover:bg-rose-800 text-rose-100 text-[10px] font-bold"
-                                >
-                                  {language === 'en' ? 'Yes, Delete' : 'হ্যাঁ'}
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="font-bold text-neutral-200 flex items-center gap-1.5 flex-wrap">
-                                  {v.name}
-                                  {v.attributes && Object.entries(v.attributes).map(([key, val]) => {
-                                    const lowerName = v.name.toLowerCase();
-                                    if (lowerName.includes(key.toLowerCase()) && lowerName.includes(val.toLowerCase())) {
-                                      return null;
-                                    }
-                                    return (
-                                      <span key={key} className="text-[7.5px] font-extrabold bg-neutral-900 border border-neutral-800 text-neutral-450 px-1 py-0.5 rounded tracking-wide">
-                                        {key}: {val}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                                <div className="text-[10px] text-neutral-500 flex gap-2.5 mt-0.5 font-mono">
-                                  <span>Stock: {v.currentStock ?? 0}</span>
-                                  <span>Avg Cost: ৳{v.movingAverageCost?.toFixed(2) ?? '0.00'}</span>
-                                  <span>Retail: ৳{(v.retailPrice || 0).toFixed(2)}</span>
-                                  {v.barcode && <span>Barcode: {v.barcode}</span>}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const firstKey = v.attributes ? Object.keys(v.attributes)[0] : 'Option';
-                                    const firstVal = v.attributes ? v.attributes[firstKey] : v.name;
-                                    setEditingVariantId(v.id!);
-                                    setEditingVariantAttrKey(firstKey);
-                                    setEditingVariantAttrVal(firstVal);
-                                    setEditingVariantBarcode(v.barcode || '');
-                                    setEditingVariantRetailPrice(v.retailPrice || '');
-                                  }}
-                                  className="p-1 rounded text-neutral-450 hover:text-neutral-200 hover:bg-neutral-850 animate-fade-in"
-                                  title="Edit variant info"
-                                >
-                                  <Edit className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setDeletingVariantId(v.id!)}
-                                  className="p-1 rounded text-rose-500 hover:bg-rose-955/20 transition-colors"
-                                  title="Delete variant"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
                   <p className="text-[10px] text-neutral-600 italic">

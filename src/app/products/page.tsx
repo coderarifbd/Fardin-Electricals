@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '@/lib/context/LanguageContext';
 import Image from 'next/image';
+import Link from 'next/link';
 import { 
   getProductsAction, 
   addProductAction, 
@@ -41,6 +42,7 @@ interface Variant {
   currentStock?: number;
   minStockAlert: number;
   movingAverageCost?: number;
+  retailPrice?: number;
   barcode?: string | null;
   imageUrl?: string | null;
   attributes?: Record<string, string> | null;
@@ -53,8 +55,11 @@ interface Product {
   currentStock: number;
   minStockAlert: number;
   movingAverageCost: number;
+  retailPrice: number;
   barcode?: string | null;
   imageUrl?: string | null;
+  description?: string | null;
+  unit?: string;
   hasVariants?: boolean;
   variants?: Variant[];
   priceHistory?: { date: string; price: number }[];
@@ -66,11 +71,16 @@ interface Toast {
   message: string;
 }
 
+const UNIT_OPTIONS = ['পিছ', 'গজ', 'ফুট', 'মিটার', 'কয়েল', 'কেজি'];
+
 const FORM_DEFAULTS = {
   name: '',
   category: '',
   minStockAlert: 0,
   barcode: '',
+  description: '',
+  unit: 'পিছ',
+  retailPrice: 0,
 };
 
 export default function ProductsPage() {
@@ -100,6 +110,7 @@ export default function ProductsPage() {
   const [tempVariantName, setTempVariantName] = useState('');
   const [tempVariantBarcode, setTempVariantBarcode] = useState('');
   const [tempVariantMinAlert, setTempVariantMinAlert] = useState(0);
+  const [tempVariantRetailPrice, setTempVariantRetailPrice] = useState<number | ''>('');
   const [tempVariantImageUrl, setTempVariantImageUrl] = useState<string | null>(null);
   const [mainProductImageUrl, setMainProductImageUrl] = useState<string | null>(null);
 
@@ -119,6 +130,7 @@ export default function ProductsPage() {
   const [editingVariantId, setEditingVariantId] = useState<number | null>(null);
   const [editingVariantName, setEditingVariantName] = useState('');
   const [editingVariantBarcode, setEditingVariantBarcode] = useState('');
+  const [editingVariantRetailPrice, setEditingVariantRetailPrice] = useState<number | ''>('');
   const [deletingVariantId, setDeletingVariantId] = useState<number | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
@@ -179,12 +191,14 @@ export default function ProductsPage() {
         barcode: tempVariantBarcode.trim() || null,
         minStockAlert: tempVariantMinAlert,
         imageUrl: tempVariantImageUrl,
-        attributes: null
+        attributes: null,
+        retailPrice: tempVariantRetailPrice === '' ? 0 : Number(tempVariantRetailPrice)
       }
     ]);
     setTempVariantName('');
     setTempVariantBarcode('');
     setTempVariantMinAlert(0);
+    setTempVariantRetailPrice('');
     setTempVariantImageUrl(null);
   };
 
@@ -298,7 +312,10 @@ export default function ProductsPage() {
       minStockAlert: addForm.minStockAlert,
       barcode: addForm.barcode.trim() || null,
       imageUrl: mainProductImageUrl,
-      variants: addVariants.length > 0 ? addVariants : undefined
+      variants: addVariants.length > 0 ? addVariants : undefined,
+      description: addForm.description.trim() || null,
+      unit: addForm.unit || 'পিছ',
+      retailPrice: addForm.retailPrice || 0
     };
 
     const res = await addProductAction(payload);
@@ -332,7 +349,10 @@ export default function ProductsPage() {
       category: editForm.category.trim(),
       minStockAlert: editForm.minStockAlert,
       barcode: editForm.barcode.trim() || null,
-      imageUrl: editImageUrl
+      imageUrl: editImageUrl,
+      description: editForm.description.trim() || null,
+      unit: editForm.unit || 'পিছ',
+      retailPrice: editForm.retailPrice || 0
     });
     setSubmitting(false);
 
@@ -366,11 +386,15 @@ export default function ProductsPage() {
 
     const barcode = prompt(language === 'en' ? 'Enter Barcode (optional):' : 'বারকোড লিখুন (ঐচ্ছিক):');
 
+    const retailPriceStr = prompt(language === 'en' ? 'Enter Retail Price (optional):' : 'খুচরা বিক্রয় মূল্য লিখুন (ঐচ্ছিক):');
+    const retailPrice = retailPriceStr ? parseFloat(retailPriceStr) || 0 : 0;
+
     const res = await addVariantAction({
       productId: editProduct.id,
       name: name.trim(),
       barcode: barcode?.trim() || null,
-      attributes: null
+      attributes: null,
+      retailPrice
     });
 
     if (res.success) {
@@ -392,7 +416,8 @@ export default function ProductsPage() {
     }
     const res = await updateVariantAction(variantId, {
       name: editingVariantName.trim(),
-      barcode: editingVariantBarcode.trim() || null
+      barcode: editingVariantBarcode.trim() || null,
+      retailPrice: editingVariantRetailPrice === '' ? 0 : Number(editingVariantRetailPrice)
     });
 
     if (res.success) {
@@ -513,20 +538,29 @@ export default function ProductsPage() {
               : 'পণ্য, এট্রিবিউট এবং তাদের কম্বিনেশনসমূহ পরিচালনা করুন। নতুন পণ্য যোগ করুন ও স্টক রেকর্ড ট্র্যাক করুন।'}
           </p>
         </div>
-        <button
-          onClick={() => {
-            setAddForm(FORM_DEFAULTS);
-            setAddVariants([]);
-            setMainProductImageUrl(null);
-            setMatrixGroups([]);
-            setFormError(null);
-            setShowAddModal(true);
-          }}
-          className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-all shadow-lg hover:shadow-amber-500/10"
-        >
-          <Plus className="h-4 w-4" />
-          {language === 'en' ? 'Add Product' : 'নতুন পণ্য যোগ করুন'}
-        </button>
+        <div className="flex gap-2.5">
+          <Link
+            href="/products/barcodes"
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-neutral-850 bg-neutral-900/20 hover:bg-neutral-900/40 text-neutral-300 hover:text-neutral-100 text-xs font-semibold transition-all select-none"
+          >
+            <Barcode className="h-4 w-4 text-purple-400" />
+            {language === 'en' ? 'Print Barcodes' : 'বারকোড প্রিন্ট'}
+          </Link>
+          <button
+            onClick={() => {
+              setAddForm(FORM_DEFAULTS);
+              setAddVariants([]);
+              setMainProductImageUrl(null);
+              setMatrixGroups([]);
+              setFormError(null);
+              setShowAddModal(true);
+            }}
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-all shadow-lg hover:shadow-amber-500/10 shrink-0 cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            {language === 'en' ? 'Add Product' : 'নতুন পণ্য যোগ করুন'}
+          </button>
+        </div>
       </div>
 
       {/* Filters & Search */}
@@ -613,7 +647,10 @@ export default function ProductsPage() {
                           name: p.name,
                           category: p.category,
                           minStockAlert: p.minStockAlert,
-                          barcode: p.barcode || ''
+                          barcode: p.barcode || '',
+                          description: p.description || '',
+                          unit: p.unit || 'পিছ',
+                          retailPrice: p.retailPrice || 0
                         });
                         setEditImageUrl(p.imageUrl || null);
                         setFormError(null);
@@ -670,10 +707,10 @@ export default function ProductsPage() {
 
                   <div className="space-y-0.5">
                     <span className="text-[9px] text-neutral-500 uppercase font-semibold block">
-                      {p.hasVariants ? (language === 'en' ? 'Variations' : 'ভেরিয়েশন') : (language === 'en' ? 'Avg Cost' : 'গড় ক্রয়মূল্য')}
+                      {p.hasVariants ? (language === 'en' ? 'Variations' : 'ভেরিয়েশন') : (language === 'en' ? 'Price Details' : 'মূল্য বিবরণী')}
                     </span>
-                    <span className="text-sm font-bold text-neutral-300 font-mono">
-                      {p.hasVariants ? `${p.variants?.length} types` : `৳${p.movingAverageCost.toFixed(2)}`}
+                    <span className="text-xs font-bold text-neutral-300 font-mono">
+                      {p.hasVariants ? `${p.variants?.length} types` : `Buy: ৳${p.movingAverageCost.toFixed(2)} / Sell: ৳${(p.retailPrice || 0).toFixed(2)}`}
                     </span>
                   </div>
                 </div>
@@ -705,7 +742,9 @@ export default function ProductsPage() {
                             </div>
                             <div className="text-right">
                               <div className="font-bold text-emerald-500">{v.currentStock} pcs</div>
-                              <div className="text-[8px] text-neutral-500">Cost: ৳{v.movingAverageCost?.toFixed(2)}</div>
+                              <div className="text-[8.5px] text-neutral-500">
+                                Buy: ৳{v.movingAverageCost?.toFixed(2)} / Sell: ৳{(v.retailPrice || 0).toFixed(2)}
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -757,7 +796,7 @@ export default function ProductsPage() {
                 <th className="p-3">{language === 'en' ? 'Product Name' : 'পণ্যের নাম'}</th>
                 <th className="p-3 w-32">{language === 'en' ? 'Category' : 'ক্যাটাগরি'}</th>
                 <th className="p-3 text-right w-32">{language === 'en' ? 'Stock' : 'স্টক'}</th>
-                <th className="p-3 text-right w-36">{language === 'en' ? 'Avg Cost' : 'গড় ক্রয়মূল্য'}</th>
+                <th className="p-3 text-right w-44">{language === 'en' ? 'Price Details' : 'মূল্য বিবরণী'}</th>
                 <th className="p-3 w-16"></th>
               </tr>
             </thead>
@@ -799,8 +838,8 @@ export default function ProductsPage() {
                     <td className="p-3 text-right font-mono font-bold text-neutral-300">
                       {aggregateStock} pcs
                     </td>
-                    <td className="p-3 text-right font-mono font-bold text-neutral-300">
-                      {p.hasVariants ? '—' : `৳${p.movingAverageCost.toFixed(2)}`}
+                    <td className="p-3 text-right font-mono font-bold text-neutral-300 text-xs">
+                      {p.hasVariants ? '—' : `Buy: ৳${p.movingAverageCost.toFixed(2)} / Sell: ৳${(p.retailPrice || 0).toFixed(2)}`}
                     </td>
                     <td className="p-3 text-center">
                       <button
@@ -810,7 +849,10 @@ export default function ProductsPage() {
                             name: p.name,
                             category: p.category,
                             minStockAlert: p.minStockAlert,
-                            barcode: p.barcode || ''
+                            barcode: p.barcode || '',
+                            description: p.description || '',
+                            unit: p.unit || 'পিছ',
+                            retailPrice: p.retailPrice || 0
                           });
                           setEditImageUrl(p.imageUrl || null);
                           setFormError(null);
@@ -910,11 +952,52 @@ export default function ProductsPage() {
                     className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/60 text-xs text-neutral-200 outline-none focus:border-amber-500 transition-colors"
                   />
                 </div>
+
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 block">
+                    {language === 'en' ? 'Product Description (Rich Info)' : 'পণ্যের বিবরণ (Rich Details)'}
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="e.g. This premium Havells LED bulb delivers ultra-bright illumination with 90% energy savings. Lifetime: 25000 hours."
+                    value={addForm.description}
+                    onChange={e => setAddForm({ ...addForm, description: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/60 text-xs text-neutral-202 outline-none focus:border-amber-500 transition-colors"
+                  />
+                </div>
+
+                {/* Unit of Measurement */}
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 block">
+                    {language === 'en' ? 'Unit of Measurement (Sales Unit)' : 'বিক্রয় একক (Unit)'}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {UNIT_OPTIONS.map(u => (
+                      <button
+                        key={u}
+                        type="button"
+                        onClick={() => setAddForm({ ...addForm, unit: u })}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                          addForm.unit === u
+                            ? 'bg-amber-500 text-black border-amber-500'
+                            : 'bg-neutral-900/60 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                        }`}
+                      >
+                        {u}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-neutral-500">
+                    {addForm.unit === 'গজ' || addForm.unit === 'ফুট' || addForm.unit === 'মিটার' || addForm.unit === 'কেজি'
+                      ? '⚠️ এই একক-এ দশমিক পরিমাণ (যেমন ৫.৫) অর্ডার করা যাবে।'
+                      : 'এই একক-এ শুধু পূর্ণসংখ্যা (১, ২, ৩...) অর্ডার করা যাবে।'}
+                  </p>
+                </div>
               </div>
 
               {/* General options (if no variants added yet) */}
               {addVariants.length === 0 && (
-                <div className="grid grid-cols-2 gap-3 border-b border-neutral-905 pb-3">
+                <div className="grid grid-cols-3 gap-3 border-b border-neutral-905 pb-3">
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 block">
                       {language === 'en' ? 'Min Stock Alert' : 'সর্বনিম্ন স্টক এলার্ট'}
@@ -924,6 +1007,19 @@ export default function ProductsPage() {
                       value={addForm.minStockAlert}
                       onChange={e => setAddForm({ ...addForm, minStockAlert: parseInt(e.target.value) || 0 })}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/60 text-xs text-neutral-200 outline-none focus:border-amber-500 transition-colors"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 block">
+                      {language === 'en' ? 'Retail Price (৳)' : 'খুচরা বিক্রয় মূল্য (৳)'}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={addForm.retailPrice || ''}
+                      onChange={e => setAddForm({ ...addForm, retailPrice: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/60 text-xs text-neutral-202 outline-none focus:border-amber-500 transition-colors font-mono font-semibold"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -977,7 +1073,7 @@ export default function ProductsPage() {
                 {/* Tab Contents: MANUAL MODE */}
                 {variantTab === 'MANUAL' && (
                   <div className="space-y-3 pt-1">
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <div className="space-y-1">
                         <label className="text-[10px] font-semibold text-neutral-500 uppercase">
                           {language === 'en' ? 'Variation Name' : 'ভেরিয়েশনের নাম'}
@@ -988,6 +1084,19 @@ export default function ProductsPage() {
                           onChange={e => setTempVariantName(e.target.value)}
                           placeholder="e.g. 20W White, 22W CoolDay"
                           className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-855 bg-neutral-900 text-xs text-neutral-200 outline-none focus:border-amber-500 font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-neutral-500 uppercase">
+                          {language === 'en' ? 'Retail Price (৳)' : 'খুচরা বিক্রয় মূল্য (৳)'}
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={tempVariantRetailPrice}
+                          onChange={e => setTempVariantRetailPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                          placeholder="0.00"
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-855 bg-neutral-900 text-xs text-neutral-200 outline-none focus:border-amber-500 font-mono font-semibold"
                         />
                       </div>
                       <div className="space-y-1">
@@ -1256,9 +1365,50 @@ export default function ProductsPage() {
                 />
               </div>
 
+              {/* Description */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 block">
+                  {language === 'en' ? 'Product Description' : 'পণ্যের বিবরণ'}
+                </label>
+                <textarea
+                  rows={2}
+                  value={editForm.description}
+                  onChange={e => setEditForm({ ...editForm, description: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/60 text-xs text-neutral-202 outline-none focus:border-amber-500 transition-colors"
+                />
+              </div>
+
+              {/* Unit of Measurement */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 block">
+                  {language === 'en' ? 'Unit of Measurement (Sales Unit)' : 'বিক্রয় একক (Unit)'}
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {UNIT_OPTIONS.map(u => (
+                    <button
+                      key={u}
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, unit: u })}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                        editForm.unit === u
+                          ? 'bg-amber-500 text-black border-amber-500'
+                          : 'bg-neutral-900/60 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                      }`}
+                    >
+                      {u}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-neutral-500">
+                  {editForm.unit === 'গজ' || editForm.unit === 'ফুট' || editForm.unit === 'মিটার' || editForm.unit === 'কেজি'
+                    ? '⚠️ এই একক-এ দশমিক পরিমাণ (যেমন ৫.৫) অর্ডার করা যাবে।'
+                    : 'এই একক-এ শুধু পূর্ণসংখ্যা (১, ২, ৩...) অর্ডার করা যাবে।'}
+                </p>
+              </div>
+
               {/* If no variations, allow editing general alerts/barcode */}
               {(!editProduct.variants || editProduct.variants.length === 0) && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 block">
                       {language === 'en' ? 'Min Stock Alert' : 'সর্বনিম্ন স্টক এলার্ট'}
@@ -1268,6 +1418,19 @@ export default function ProductsPage() {
                       value={editForm.minStockAlert}
                       onChange={e => setEditForm({ ...editForm, minStockAlert: parseInt(e.target.value) || 0 })}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/60 text-xs text-neutral-202 outline-none focus:border-amber-500 transition-colors"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 block">
+                      {language === 'en' ? 'Retail Price (৳)' : 'খুচরা বিক্রয় মূল্য (৳)'}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={editForm.retailPrice || ''}
+                      onChange={e => setEditForm({ ...editForm, retailPrice: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-800 bg-neutral-900/60 text-xs text-neutral-202 outline-none focus:border-amber-500 transition-colors font-mono font-semibold"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -1310,7 +1473,7 @@ export default function ProductsPage() {
                         <div key={v.id} className="p-3 rounded-xl border border-neutral-900 bg-neutral-955 text-xs transition-all">
                           {isEditingThis ? (
                             <div className="space-y-2.5">
-                              <div className="grid grid-cols-2 gap-2">
+                              <div className="grid grid-cols-3 gap-2">
                                 <div className="space-y-1">
                                   <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">Name</label>
                                   <input
@@ -1318,6 +1481,16 @@ export default function ProductsPage() {
                                     value={editingVariantName}
                                     onChange={e => setEditingVariantName(e.target.value)}
                                     className="w-full px-2 py-1 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-semibold"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold block">Retail Price (৳)</label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={editingVariantRetailPrice}
+                                    onChange={e => setEditingVariantRetailPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                                    className="w-full px-2 py-1 rounded bg-neutral-900 border border-neutral-805 text-xs text-neutral-202 outline-none focus:border-amber-500 font-mono font-semibold"
                                   />
                                 </div>
                                 <div className="space-y-1">
@@ -1383,6 +1556,7 @@ export default function ProductsPage() {
                                 <div className="text-[10px] text-neutral-500 flex gap-2.5 mt-0.5 font-mono">
                                   <span>Stock: {v.currentStock ?? 0}</span>
                                   <span>Avg Cost: ৳{v.movingAverageCost?.toFixed(2) ?? '0.00'}</span>
+                                  <span>Retail: ৳{(v.retailPrice || 0).toFixed(2)}</span>
                                   {v.barcode && <span>Barcode: {v.barcode}</span>}
                                 </div>
                               </div>
@@ -1393,6 +1567,7 @@ export default function ProductsPage() {
                                     setEditingVariantId(v.id!);
                                     setEditingVariantName(v.name);
                                     setEditingVariantBarcode(v.barcode || '');
+                                    setEditingVariantRetailPrice(v.retailPrice || '');
                                   }}
                                   className="p-1 rounded text-neutral-450 hover:text-neutral-200 hover:bg-neutral-850 animate-fade-in"
                                   title="Edit variant info"

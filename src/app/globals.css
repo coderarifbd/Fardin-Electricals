@@ -1,4 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Libre+Barcode+39&display=swap');
 @import "tailwindcss";
+
+.font-barcode {
+  font-family: 'Libre Barcode 39', cursive, system-ui;
+}
 
 @theme {
   --animate-fade-in: fade-in 0.2s ease-out;
@@ -135,11 +140,8 @@ body {
   }
 
   /* POS thermal receipt overrides */
-  body.pos-print-active {
-    width: 80mm !important;
-    max-width: 80mm !important;
-    padding: 0 !important;
-    margin: 0 !important;
+  body.pos-print-active,
+  body:has(.print-receipt-container) {
     background: white !important;
     color: #000000 !important;
   }
@@ -147,19 +149,35 @@ body {
   body.pos-print-active aside,
   body.pos-print-active .mobile-bottom-bar,
   body.pos-print-active button,
-  body.pos-print-active .no-print {
+  body.pos-print-active .no-print,
+  body:has(.print-receipt-container) aside,
+  body:has(.print-receipt-container) .mobile-bottom-bar,
+  body:has(.print-receipt-container) button,
+  body:has(.print-receipt-container) .no-print {
     display: none !important;
   }
 
-  body.pos-print-active .pos-receipt-container {
+  body:has(.print-receipt-container) div[class*="md:pl-"] {
+    padding-left: 0 !important;
+  }
+
+  body:has(.print-receipt-container) main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  body.pos-print-active .pos-receipt-container,
+  body:has(.print-receipt-container) .print-receipt-container {
     display: block !important;
     width: 80mm !important;
     max-width: 80mm !important;
     padding: 2mm !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
     font-size: 11px !important;
     font-family: monospace !important;
     color: #000000 !important;
+    background: white !important;
   }
 
   /* A4 Invoice print overrides */
@@ -185,6 +203,40 @@ body {
     max-width: 100% !important;
     background: white !important;
     color: #000000 !important;
+  }
+
+  /* Barcode labels print overrides */
+  body:has(.label-print-sheet) {
+    background: white !important;
+    color: #000000 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  body:has(.label-print-sheet) aside,
+  body:has(.label-print-sheet) .mobile-bottom-bar,
+  body:has(.label-print-sheet) button,
+  body:has(.label-print-sheet) .no-print {
+    display: none !important;
+  }
+
+  body:has(.label-print-sheet) div[class*="md:pl-"] {
+    padding-left: 0 !important;
+  }
+
+  body:has(.label-print-sheet) main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  body:has(.label-print-sheet) .label-print-sheet {
+    display: block !important;
+    background: white !important;
+    color: #000000 !important;
+    padding: 5mm !important;
   }
 }
 

@@ -2,10 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { db, isDemoMode } from './db';
-import { products, productVariants, invoices, invoiceItems, expenses, users, parties, returns, auditLogs } from './db/schema';
-import { readLocalDb, writeLocalDb } from './db/localDb';
+import { products, productVariants, invoices, invoiceItems, expenses, users, parties, returns, auditLogs, onlineOrders, customers, type UserPermissions } from './db/schema';
+import { readLocalDb, writeLocalDb, type LocalDbData } from './db/localDb';
 import { eq, like, and, gte, lte, desc, inArray, notInArray, sql, ilike } from 'drizzle-orm';
 import { cookies } from 'next/headers';
+import fs from 'fs';
+import path from 'path';
 
 // Convert decimal values to numbers safely
 const parseDecimal = (val: any): number => {
@@ -195,6 +197,9 @@ export async function saveInvoiceAction(
     paidAmount: number;
     dueAmount: number;
     expectedPaymentDate?: string | null;
+    vatRate?: number;
+    vatAmount?: number;
+    discountAmount?: number;
   },
   items: {
     productId: number;
@@ -205,6 +210,12 @@ export async function saveInvoiceAction(
 ) {
   if (items.length === 0) {
     throw new Error('Invoice must contain at least one item');
+  }
+
+  if (invoiceData.invoiceType === 'SALES') {
+    await checkPermission('allowSales', 'create sales invoices');
+  } else {
+    await checkPermission('allowPurchases', 'create purchase invoices');
   }
 
   const currentUser = await getCurrentUserAction();
@@ -249,7 +260,10 @@ export async function saveInvoiceAction(
       dueAmount: invoiceData.dueAmount,
       expectedPaymentDate: invoiceData.expectedPaymentDate || null,
       createdBy: username,
-      partyId: party.id
+      partyId: party.id,
+      vatRate: invoiceData.vatRate || 0,
+      vatAmount: invoiceData.vatAmount || 0,
+      discountAmount: invoiceData.discountAmount || 0
     };
     data.invoices.push(newInvoice);
 
@@ -329,6 +343,16 @@ export async function saveInvoiceAction(
     });
 
     writeLocalDb(data);
+
+    // Auto-trigger SMS receipt
+    try {
+      if (invoiceData.invoiceType === 'SALES') {
+        await sendInvoiceSMSAction(invoiceId);
+      }
+    } catch (smsErr) {
+      console.error('Auto-SMS failed:', smsErr);
+    }
+
     revalidatePath('/');
     return { success: true, invoiceId };
   }
@@ -375,7 +399,10 @@ export async function saveInvoiceAction(
         dueAmount: String(invoiceData.dueAmount),
         expectedPaymentDate: invoiceData.expectedPaymentDate || null,
         createdBy: username,
-        partyId: party.id
+        partyId: party.id,
+        vatRate: String(invoiceData.vatRate || 0),
+        vatAmount: String(invoiceData.vatAmount || 0),
+        discountAmount: String(invoiceData.discountAmount || 0)
       })
       .returning();
 
@@ -484,6 +511,15 @@ export async function saveInvoiceAction(
       action: 'INVOICE_CREATED',
       details: `Saved ${invoiceData.invoiceType} invoice ${invoiceData.manualInvoiceNo} for party "${invoiceData.partyName}". Total: ৳${invoiceData.totalAmount}`
     });
+
+    // Auto-trigger SMS receipt
+    try {
+      if (invoiceData.invoiceType === 'SALES') {
+        await sendInvoiceSMSAction(newInvoice.id);
+      }
+    } catch (smsErr) {
+      console.error('Auto-SMS failed:', smsErr);
+    }
 
     revalidatePath('/');
     return { success: true, invoiceId: newInvoice.id };
@@ -710,7 +746,8 @@ export async function getInvoiceAction(invoiceId: number) {
       ...invoice,
       totalAmount: parseDecimal(invoice.totalAmount),
       paidAmount: parseDecimal(invoice.paidAmount),
-      dueAmount: parseDecimal(invoice.dueAmount)
+      dueAmount: parseDecimal(invoice.dueAmount),
+      discountAmount: parseDecimal(invoice.discountAmount || '0.00')
     };
   } catch (error) {
     console.error('Error fetching invoice:', error);
@@ -763,6 +800,11 @@ export async function getInvoiceItemsAction(invoiceId: number) {
 
 // 9. GET DASHBOARD DATA ACTION
 export async function getDashboardDataAction() {
+  await checkPermission('allowReports', 'view dashboard statistics');
+
+  // Trigger automatic daily database backup asynchronously
+  triggerAutoBackupAction().catch(err => console.error('Auto backup failed inside dashboard:', err));
+
   const todayStr = new Date().toLocaleDateString('en-CA');
 
   if (isDemoMode) {
@@ -1112,6 +1154,8 @@ export async function getDashboardDataAction() {
 
 // 10. GET REPORT DATA ACTION
 export async function getReportDataAction(year: number, month?: number) {
+  await checkPermission('allowReports', 'view financial reports');
+
   let startDate: string;
   let endDate: string;
 
@@ -1233,43 +1277,7 @@ export async function getReportDataAction(year: number, month?: number) {
   }
 }
 
-// 11. EXPORT DATABASE ACTION
-export async function exportDatabaseAction() {
-  if (isDemoMode) {
-    const data = readLocalDb();
-    return {
-      products: data.products,
-      invoices: data.invoices,
-      expenses: data.expenses
-    };
-  }
 
-  try {
-    const allProducts = await db!.select().from(products);
-    const allInvoices = await db!.select().from(invoices);
-    const allExpenses = await db!.select().from(expenses);
-
-    return {
-      products: allProducts.map(p => ({
-        ...p,
-        movingAverageCost: parseDecimal(p.movingAverageCost)
-      })),
-      invoices: allInvoices.map(i => ({
-        ...i,
-        totalAmount: parseDecimal(i.totalAmount),
-        paidAmount: parseDecimal(i.paidAmount),
-        dueAmount: parseDecimal(i.dueAmount)
-      })),
-      expenses: allExpenses.map(e => ({
-        ...e,
-        amount: parseDecimal(e.amount)
-      }))
-    };
-  } catch (error) {
-    console.error('Error exporting database:', error);
-    return { products: [], invoices: [], expenses: [] };
-  }
-}
 
 // Helper to write audit log
 export async function logAuditAction(action: string, details?: string | null) {
@@ -1307,7 +1315,9 @@ export async function getCurrentUserAction() {
   const session = cookieStore.get('eshop_session');
   if (!session?.value) return null;
   try {
-    return JSON.parse(session.value) as { username: string; role: 'OWNER' | 'STAFF'; name: string };
+    const sessionData = JSON.parse(session.value) as { username: string; role: 'OWNER' | 'STAFF'; name: string };
+    const permissions = await getUserPermissions(sessionData.username);
+    return { ...sessionData, permissions };
   } catch (e) {
     return null;
   }
@@ -1451,12 +1461,14 @@ export async function getProductsAction() {
         ...v,
         id: Number(v.id),
         productId: Number(v.productId),
-        movingAverageCost: parseDecimal(v.movingAverageCost)
+        movingAverageCost: parseDecimal(v.movingAverageCost),
+        retailPrice: parseDecimal(v.retailPrice || '0.00')
       }));
 
       return {
         ...r,
         movingAverageCost: parseDecimal(r.movingAverageCost),
+        retailPrice: parseDecimal(r.retailPrice || '0.00'),
         hasVariants: variants.length > 0,
         variants,
         priceHistory: history.map(h => ({
@@ -1484,9 +1496,15 @@ export async function addProductAction(formData: {
     barcode?: string | null;
     imageUrl?: string | null;
     attributes?: Record<string, string> | null;
+    retailPrice?: number;
   }[];
+  description?: string | null;
+  unit?: string;
+  retailPrice?: number;
 }): Promise<{ success: boolean; error?: string }> {
-  const { name, category, minStockAlert, barcode, imageUrl, variants } = formData;
+  await checkPermission('allowStockEdit', 'add products');
+
+  const { name, category, minStockAlert, barcode, imageUrl, variants, description, unit, retailPrice } = formData;
 
   if (!name.trim() || !category.trim()) {
     return { success: false, error: 'Product name and category are required.' };
@@ -1511,8 +1529,11 @@ export async function addProductAction(formData: {
       currentStock: 0,
       minStockAlert: minStockAlert ?? 0,
       movingAverageCost: 0,
+      retailPrice: retailPrice || 0,
       barcode: barcode?.trim() || null,
       imageUrl: imageUrl || null,
+      description: description || null,
+      unit: unit || 'পিছ'
     };
 
     data.products.push(newProduct);
@@ -1529,6 +1550,7 @@ export async function addProductAction(formData: {
           currentStock: 0,
           minStockAlert: v.minStockAlert ?? 0,
           movingAverageCost: 0,
+          retailPrice: v.retailPrice || 0,
           barcode: v.barcode?.trim() || null,
           imageUrl: v.imageUrl || null,
           attributes: v.attributes || null
@@ -1577,8 +1599,11 @@ export async function addProductAction(formData: {
       currentStock: 0,
       minStockAlert: minStockAlert ?? 0,
       movingAverageCost: '0.00',
+      retailPrice: String(retailPrice || 0),
       barcode: barcode?.trim() || null,
       imageUrl: imageUrl || null,
+      description: description || null,
+      unit: unit || 'পিছ'
     }).returning();
 
     // Insert variants inline if provided
@@ -1590,6 +1615,7 @@ export async function addProductAction(formData: {
           currentStock: 0,
           minStockAlert: v.minStockAlert ?? 0,
           movingAverageCost: '0.00',
+          retailPrice: String(v.retailPrice || 0),
           barcode: v.barcode?.trim() || null,
           imageUrl: v.imageUrl || null,
           attributes: v.attributes || null
@@ -1626,15 +1652,17 @@ export async function getProductVariantsAction(productId: number) {
   }
   try {
     const rows = await db!.select().from(productVariants).where(eq(productVariants.productId, productId));
-    return rows.map(v => ({ ...v, movingAverageCost: parseDecimal(v.movingAverageCost) }));
+    return rows.map(v => ({ ...v, movingAverageCost: parseDecimal(v.movingAverageCost), retailPrice: parseDecimal(v.retailPrice || '0.00') }));
   } catch (error) { console.error('Error getting variants:', error); return []; }
 }
 
 // 14d. ADD VARIANT
 export async function addVariantAction(formData: {
-  productId: number; name: string; minStockAlert?: number; barcode?: string | null; imageUrl?: string | null; attributes?: Record<string, string> | null;
+  productId: number; name: string; minStockAlert?: number; barcode?: string | null; imageUrl?: string | null; attributes?: Record<string, string> | null; retailPrice?: number;
 }): Promise<{ success: boolean; error?: string; variantId?: number }> {
-  const { productId, name, minStockAlert, barcode, imageUrl, attributes } = formData;
+  await checkPermission('allowStockEdit', 'add product variants');
+
+  const { productId, name, minStockAlert, barcode, imageUrl, attributes, retailPrice } = formData;
   if (!name.trim()) return { success: false, error: 'Variant name is required.' };
   if (isDemoMode) {
     const data = readLocalDb();
@@ -1642,7 +1670,7 @@ export async function addVariantAction(formData: {
     const dup = data.productVariants.find(v => v.productId === productId && v.name.toLowerCase() === name.trim().toLowerCase());
     if (dup) return { success: false, error: 'A variant with this name already exists.' };
     const newId = data.productVariants.length > 0 ? Math.max(...data.productVariants.map(v => v.id)) + 1 : 1;
-    data.productVariants.push({ id: newId, productId, name: name.trim(), currentStock: 0, minStockAlert: minStockAlert ?? 0, movingAverageCost: 0, barcode: barcode?.trim() || null, imageUrl: imageUrl || null, attributes: attributes || null });
+    data.productVariants.push({ id: newId, productId, name: name.trim(), currentStock: 0, minStockAlert: minStockAlert ?? 0, movingAverageCost: 0, retailPrice: retailPrice || 0, barcode: barcode?.trim() || null, imageUrl: imageUrl || null, attributes: attributes || null });
     writeLocalDb(data);
     revalidatePath('/products');
     return { success: true, variantId: newId };
@@ -1651,7 +1679,7 @@ export async function addVariantAction(formData: {
     const dup = await db!.select({ id: productVariants.id }).from(productVariants)
       .where(and(eq(productVariants.productId, productId), sql`LOWER(${productVariants.name}) = LOWER(${name.trim()})`)).limit(1);
     if (dup.length > 0) return { success: false, error: 'A variant with this name already exists.' };
-    const [ins] = await db!.insert(productVariants).values({ productId, name: name.trim(), currentStock: 0, minStockAlert: minStockAlert ?? 0, movingAverageCost: '0.00', barcode: barcode?.trim() || null, imageUrl: imageUrl || null, attributes: attributes || null }).returning();
+    const [ins] = await db!.insert(productVariants).values({ productId, name: name.trim(), currentStock: 0, minStockAlert: minStockAlert ?? 0, movingAverageCost: '0.00', retailPrice: String(retailPrice || 0), barcode: barcode?.trim() || null, imageUrl: imageUrl || null, attributes: attributes || null }).returning();
     revalidatePath('/products');
     return { success: true, variantId: ins.id };
   } catch (error: any) { console.error('Error adding variant:', error); return { success: false, error: 'Failed to add variant.' }; }
@@ -1659,8 +1687,10 @@ export async function addVariantAction(formData: {
 
 // 14e. UPDATE VARIANT
 export async function updateVariantAction(variantId: number, formData: {
-  name?: string; minStockAlert?: number; barcode?: string | null; imageUrl?: string | null;
+  name?: string; minStockAlert?: number; barcode?: string | null; imageUrl?: string | null; retailPrice?: number;
 }): Promise<{ success: boolean; error?: string }> {
+  await checkPermission('allowStockEdit', 'edit product variants');
+
   if (isDemoMode) {
     const data = readLocalDb();
     if (!data.productVariants) return { success: false, error: 'No variants.' };
@@ -1677,6 +1707,7 @@ export async function updateVariantAction(variantId: number, formData: {
       ...(formData.minStockAlert !== undefined && { minStockAlert: formData.minStockAlert }),
       ...(formData.barcode !== undefined && { barcode: formData.barcode?.trim() || null }),
       ...(formData.imageUrl !== undefined && { imageUrl: formData.imageUrl }),
+      ...(formData.retailPrice !== undefined && { retailPrice: String(formData.retailPrice) }),
     }).where(eq(productVariants.id, variantId));
     revalidatePath('/products');
     return { success: true };
@@ -1685,6 +1716,8 @@ export async function updateVariantAction(variantId: number, formData: {
 
 // 14f. DELETE VARIANT
 export async function deleteVariantAction(variantId: number): Promise<{ success: boolean; error?: string }> {
+  await checkPermission('allowStockEdit', 'delete product variants');
+
   if (isDemoMode) {
     const data = readLocalDb();
     if (!data.productVariants) return { success: false, error: 'No variants.' };
@@ -1702,8 +1735,10 @@ export async function deleteVariantAction(variantId: number): Promise<{ success:
 
 // 14g. UPDATE PRODUCT
 export async function updateProductAction(productId: number, formData: {
-  name?: string; category?: string; minStockAlert?: number; barcode?: string | null; imageUrl?: string | null;
+  name?: string; category?: string; minStockAlert?: number; barcode?: string | null; imageUrl?: string | null; description?: string | null; unit?: string; retailPrice?: number;
 }): Promise<{ success: boolean; error?: string }> {
+  await checkPermission('allowStockEdit', 'edit products');
+
   if (isDemoMode) {
     const data = readLocalDb();
     const idx = data.products.findIndex(p => p.id === productId);
@@ -1729,6 +1764,9 @@ export async function updateProductAction(productId: number, formData: {
       ...(formData.minStockAlert !== undefined && { minStockAlert: formData.minStockAlert }),
       ...(formData.barcode !== undefined && { barcode: formData.barcode?.trim() || null }),
       ...(formData.imageUrl !== undefined && { imageUrl: formData.imageUrl }),
+      ...(formData.description !== undefined && { description: formData.description }),
+      ...(formData.unit !== undefined && { unit: formData.unit }),
+      ...(formData.retailPrice !== undefined && { retailPrice: String(formData.retailPrice) }),
     }).where(eq(products.id, productId));
     revalidatePath('/products');
     return { success: true };
@@ -1737,6 +1775,8 @@ export async function updateProductAction(productId: number, formData: {
 
 // 14h. DELETE PRODUCT
 export async function deleteProductAction(productId: number): Promise<{ success: boolean; error?: string }> {
+  await checkPermission('allowStockEdit', 'delete products');
+
   if (isDemoMode) {
     const data = readLocalDb();
     data.products = data.products.filter(p => p.id !== productId);
@@ -1987,6 +2027,8 @@ export async function processReturnAction(
 
 // 18. DELETE INVOICE ACTION
 export async function deleteInvoiceAction(invoiceId: number) {
+  await checkPermission('allowDelete', 'delete or void invoices');
+
   const currentUser = await getCurrentUserAction();
   const username = currentUser ? currentUser.username : 'system';
 
@@ -2096,6 +2138,7 @@ export async function updateInvoiceAction(
     paidAmount: number;
     dueAmount: number;
     expectedPaymentDate?: string | null;
+    discountAmount?: number;
   },
   items: {
     productId: number;
@@ -2186,6 +2229,7 @@ export async function updateInvoiceAction(
     invoice.paidAmount = invoiceData.paidAmount;
     invoice.dueAmount = invoiceData.dueAmount;
     invoice.expectedPaymentDate = invoiceData.expectedPaymentDate || null;
+    invoice.discountAmount = invoiceData.discountAmount || 0;
     invoice.partyId = newParty.id;
 
     // 5. Delete old invoice items & returns
@@ -2349,6 +2393,7 @@ export async function updateInvoiceAction(
         paidAmount: String(invoiceData.paidAmount),
         dueAmount: String(invoiceData.dueAmount),
         expectedPaymentDate: invoiceData.expectedPaymentDate || null,
+        discountAmount: String(invoiceData.discountAmount || 0),
         partyId: newParty.id
       })
       .where(eq(invoices.id, invoiceId));
@@ -2462,7 +2507,7 @@ export async function getUsersAction() {
 
   if (isDemoMode) {
     const data = readLocalDb();
-    return data.users.map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role }));
+    return data.users.map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, permissions: u.permissions }));
   }
 
   try {
@@ -2471,7 +2516,8 @@ export async function getUsersAction() {
       id: u.id,
       username: u.username,
       name: u.name,
-      role: u.role as 'OWNER' | 'STAFF'
+      role: u.role as 'OWNER' | 'STAFF',
+      permissions: u.permissions as UserPermissions | null
     }));
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -2508,7 +2554,14 @@ export async function createUserAction(userData: {
       username: usernameLower,
       passwordHash: userData.passwordHash,
       role: userData.role,
-      name: userData.name
+      name: userData.name,
+      permissions: {
+        allowSales: true,
+        allowPurchases: true,
+        allowReports: userData.role === 'OWNER',
+        allowDelete: userData.role === 'OWNER',
+        allowStockEdit: userData.role === 'OWNER'
+      }
     };
     
     data.users.push(newUser);
@@ -2537,7 +2590,14 @@ export async function createUserAction(userData: {
         username: usernameLower,
         passwordHash: userData.passwordHash,
         role: userData.role,
-        name: userData.name
+        name: userData.name,
+        permissions: {
+          allowSales: true,
+          allowPurchases: true,
+          allowReports: userData.role === 'OWNER',
+          allowDelete: userData.role === 'OWNER',
+          allowStockEdit: userData.role === 'OWNER'
+        }
       });
 
     await logAuditAction('USER_CREATED', `Created new ${userData.role} user "${userData.username}" (${userData.name})`);
@@ -2645,6 +2705,853 @@ export async function updateUserAction(targetUsername: string, updatedData: { na
     console.error('Error updating user profile in DB:', err);
     throw new Error(err.message || 'Failed to update user profile');
   }
+}
+
+// 14. DATABASE BACKUP & RESTORE ACTIONS
+function validateBackupData(data: any): data is LocalDbData {
+  if (!data || typeof data !== 'object') return false;
+  const requiredKeys = [
+    'products',
+    'productVariants',
+    'invoices',
+    'invoiceItems',
+    'expenses',
+    'users',
+    'parties',
+    'returns',
+    'auditLogs'
+  ];
+  return requiredKeys.every(k => Array.isArray(data[k]));
+}
+
+export async function triggerAutoBackupAction() {
+  try {
+    const backupDir = path.join(process.cwd(), 'backups');
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+
+    // Check if backup already exists for today
+    const files = fs.readdirSync(backupDir);
+    const todayBackupExists = files.some(f => f.includes(todayStr));
+
+    if (todayBackupExists) {
+      return; // Already backed up today
+    }
+
+    let backupData: LocalDbData;
+    if (isDemoMode) {
+      backupData = readLocalDb();
+    } else {
+      const productsList = await db!.select().from(products);
+      const variantsList = await db!.select().from(productVariants);
+      const invoicesList = await db!.select().from(invoices);
+      const itemsList = await db!.select().from(invoiceItems);
+      const expensesList = await db!.select().from(expenses);
+      const usersList = await db!.select().from(users);
+      const partiesList = await db!.select().from(parties);
+      const returnsList = await db!.select().from(returns);
+      const auditLogsList = await db!.select().from(auditLogs);
+
+      backupData = {
+        products: productsList.map(p => ({ ...p, movingAverageCost: parseDecimal(p.movingAverageCost), retailPrice: parseDecimal(p.retailPrice || '0.00') })),
+        productVariants: variantsList.map(v => ({ ...v, id: Number(v.id), productId: Number(v.productId), movingAverageCost: parseDecimal(v.movingAverageCost), retailPrice: parseDecimal(v.retailPrice || '0.00') })),
+        invoices: invoicesList.map(i => ({ ...i, invoiceType: i.invoiceType as 'SALES' | 'PURCHASE', totalAmount: parseDecimal(i.totalAmount), paidAmount: parseDecimal(i.paidAmount), dueAmount: parseDecimal(i.dueAmount), partyId: i.partyId ? Number(i.partyId) : null, vatRate: parseDecimal(i.vatRate), vatAmount: parseDecimal(i.vatAmount), discountAmount: parseDecimal(i.discountAmount || '0.00') })),
+        invoiceItems: itemsList.map(item => ({ ...item, unitPrice: parseDecimal(item.unitPrice), costPriceAtSale: parseDecimal(item.costPriceAtSale), variantId: item.variantId ? Number(item.variantId) : null })),
+        expenses: expensesList.map(e => ({ ...e, category: e.category as 'Rent' | 'Utility' | 'Salary' | 'Tea-Snacks' | 'Others', amount: parseDecimal(e.amount) })),
+        users: usersList.map(u => ({ ...u, role: u.role as 'OWNER' | 'STAFF' })),
+        parties: partiesList.map(p => ({ ...p, partyType: p.partyType as 'CUSTOMER' | 'SUPPLIER', currentBalance: parseDecimal(p.currentBalance) })),
+        returns: returnsList.map(r => ({ ...r, refundAmount: parseDecimal(r.refundAmount) })),
+        auditLogs: auditLogsList.map(l => ({ ...l, timestamp: l.timestamp.toISOString() }))
+      };
+    }
+
+    const timestamp = now.toISOString().replace(/[:.]/g, '-');
+    const mode = isDemoMode ? 'demo' : 'postgres';
+    const backupFileName = `backup_${mode}_${timestamp}.json`;
+    const backupFilePath = path.join(backupDir, backupFileName);
+
+    fs.writeFileSync(backupFilePath, JSON.stringify(backupData, null, 2));
+    console.log(`Auto-backup saved: ${backupFileName}`);
+
+    // Clean old backups keeping only last 30
+    const allBackups = fs.readdirSync(backupDir)
+      .filter(f => f.startsWith('backup_') && f.endsWith('.json'))
+      .map(f => ({ name: f, path: path.join(backupDir, f), time: fs.statSync(path.join(backupDir, f)).mtimeMs }))
+      .sort((a, b) => b.time - a.time);
+
+    if (allBackups.length > 30) {
+      const toDelete = allBackups.slice(30);
+      toDelete.forEach(b => {
+        fs.unlinkSync(b.path);
+        console.log(`Auto-backup deleted old backup: ${b.name}`);
+      });
+    }
+  } catch (err) {
+    console.error('Auto backup failed:', err);
+  }
+}
+
+export async function exportDatabaseAction() {
+  const currentUser = await getCurrentUserAction();
+  if (!currentUser || currentUser.role !== 'OWNER') {
+    throw new Error('Only owners can export database backups');
+  }
+
+  if (isDemoMode) {
+    return readLocalDb();
+  }
+
+  try {
+    const productsList = await db!.select().from(products);
+    const variantsList = await db!.select().from(productVariants);
+    const invoicesList = await db!.select().from(invoices);
+    const itemsList = await db!.select().from(invoiceItems);
+    const expensesList = await db!.select().from(expenses);
+    const usersList = await db!.select().from(users);
+    const partiesList = await db!.select().from(parties);
+    const returnsList = await db!.select().from(returns);
+    const auditLogsList = await db!.select().from(auditLogs);
+
+    const exportedData: LocalDbData = {
+      products: productsList.map(p => ({ ...p, movingAverageCost: parseDecimal(p.movingAverageCost), retailPrice: parseDecimal(p.retailPrice || '0.00') })),
+      productVariants: variantsList.map(v => ({ ...v, id: Number(v.id), productId: Number(v.productId), movingAverageCost: parseDecimal(v.movingAverageCost), retailPrice: parseDecimal(v.retailPrice || '0.00') })),
+      invoices: invoicesList.map(i => ({ ...i, invoiceType: i.invoiceType as 'SALES' | 'PURCHASE', totalAmount: parseDecimal(i.totalAmount), paidAmount: parseDecimal(i.paidAmount), dueAmount: parseDecimal(i.dueAmount), partyId: i.partyId ? Number(i.partyId) : null, vatRate: parseDecimal(i.vatRate), vatAmount: parseDecimal(i.vatAmount), discountAmount: parseDecimal(i.discountAmount || '0.00') })),
+      invoiceItems: itemsList.map(item => ({ ...item, unitPrice: parseDecimal(item.unitPrice), costPriceAtSale: parseDecimal(item.costPriceAtSale), variantId: item.variantId ? Number(item.variantId) : null })),
+      expenses: expensesList.map(e => ({ ...e, category: e.category as 'Rent' | 'Utility' | 'Salary' | 'Tea-Snacks' | 'Others', amount: parseDecimal(e.amount) })),
+      users: usersList.map(u => ({ ...u, role: u.role as 'OWNER' | 'STAFF' })),
+      parties: partiesList.map(p => ({ ...p, partyType: p.partyType as 'CUSTOMER' | 'SUPPLIER', currentBalance: parseDecimal(p.currentBalance) })),
+      returns: returnsList.map(r => ({ ...r, refundAmount: parseDecimal(r.refundAmount) })),
+      auditLogs: auditLogsList.map(l => ({ ...l, timestamp: l.timestamp.toISOString() }))
+    };
+
+    return exportedData;
+  } catch (error) {
+    console.error('Failed to export Postgres DB:', error);
+    throw new Error('Database export failed.');
+  }
+}
+
+export async function restoreDatabaseAction(backupData: LocalDbData) {
+  const currentUser = await getCurrentUserAction();
+  if (!currentUser || currentUser.role !== 'OWNER') {
+    throw new Error('Only owners can restore database backups');
+  }
+
+  if (!validateBackupData(backupData)) {
+    throw new Error('Invalid backup data structure.');
+  }
+
+  if (isDemoMode) {
+    writeLocalDb(backupData);
+    await logAuditAction('DB_RESTORE', 'Database restored successfully from local JSON backup');
+    revalidatePath('/');
+    return { success: true };
+  }
+
+  // Postgres Mode Restore
+  try {
+    await db!.transaction(async (tx) => {
+      // Delete in reverse order of foreign keys
+      await tx.delete(auditLogs);
+      await tx.delete(returns);
+      await tx.delete(expenses);
+      await tx.delete(invoiceItems);
+      await tx.delete(invoices);
+      await tx.delete(productVariants);
+      await tx.delete(products);
+      await tx.delete(parties);
+      await tx.delete(users);
+
+      // Insert in order of dependencies
+      if (backupData.users.length > 0) {
+        await tx.insert(users).values(backupData.users);
+      }
+      if (backupData.parties.length > 0) {
+        await tx.insert(parties).values(backupData.parties.map(p => ({ ...p, currentBalance: String(p.currentBalance) })));
+      }
+      if (backupData.products.length > 0) {
+        await tx.insert(products).values(backupData.products.map(p => ({ ...p, movingAverageCost: String(p.movingAverageCost), retailPrice: String(p.retailPrice || 0) })));
+      }
+      if (backupData.productVariants.length > 0) {
+        await tx.insert(productVariants).values(backupData.productVariants.map(v => ({ ...v, movingAverageCost: String(v.movingAverageCost), retailPrice: String(v.retailPrice || 0) })));
+      }
+      if (backupData.invoices.length > 0) {
+        await tx.insert(invoices).values(backupData.invoices.map(i => ({ ...i, totalAmount: String(i.totalAmount), paidAmount: String(i.paidAmount), dueAmount: String(i.dueAmount), invoiceDate: i.invoiceDate, expectedPaymentDate: i.expectedPaymentDate || null, vatRate: String(i.vatRate || 0), vatAmount: String(i.vatAmount || 0), discountAmount: String(i.discountAmount || 0) })));
+      }
+      if (backupData.invoiceItems.length > 0) {
+        await tx.insert(invoiceItems).values(backupData.invoiceItems.map(item => ({ ...item, unitPrice: String(item.unitPrice), costPriceAtSale: String(item.costPriceAtSale) })));
+      }
+      if (backupData.expenses.length > 0) {
+        await tx.insert(expenses).values(backupData.expenses.map(e => ({ ...e, amount: String(e.amount), date: e.date })));
+      }
+      if (backupData.returns.length > 0) {
+        await tx.insert(returns).values(backupData.returns.map(r => ({ ...r, refundAmount: String(r.refundAmount), returnDate: r.returnDate })));
+      }
+      if (backupData.auditLogs.length > 0) {
+        await tx.insert(auditLogs).values(backupData.auditLogs.map(l => ({ ...l, timestamp: new Date(l.timestamp) })));
+      }
+
+      // Reset sequences for all tables to avoid serial ID collisions
+      const tables = ['users', 'parties', 'products', 'productVariants', 'invoices', 'invoiceItems', 'expenses', 'returns', 'auditLogs'];
+      for (const table of tables) {
+        const pgTableName = table === 'productVariants' ? 'product_variants' : 
+                            table === 'invoiceItems' ? 'invoice_items' : 
+                            table === 'auditLogs' ? 'audit_logs' : table;
+        await tx.execute(sql.raw(`SELECT setval(pg_get_serial_sequence('${pgTableName}', 'id'), coalesce(max(id), 1)) FROM ${pgTableName};`));
+      }
+    });
+
+    await logAuditAction('DB_RESTORE', 'Database restored successfully in Postgres from backup file');
+    revalidatePath('/');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to restore Postgres DB:', error);
+    throw new Error('Database restore failed: ' + (error as Error).message);
+  }
+}
+
+// 15. USER ROLE & PERMISSION CHECKS AND MANAGEMENT
+export async function getUserPermissions(username: string): Promise<UserPermissions> {
+  const defaultStaffPermissions: UserPermissions = {
+    allowSales: true,
+    allowPurchases: true,
+    allowReports: false,
+    allowDelete: false,
+    allowStockEdit: false
+  };
+  
+  const defaultOwnerPermissions: UserPermissions = {
+    allowSales: true,
+    allowPurchases: true,
+    allowReports: true,
+    allowDelete: true,
+    allowStockEdit: true
+  };
+
+  if (isDemoMode) {
+    const data = readLocalDb();
+    const user = data.users.find(u => u.username.toLowerCase() === username.toLowerCase());
+    if (!user) return defaultStaffPermissions;
+    if (user.role === 'OWNER') return defaultOwnerPermissions;
+    return (user.permissions as UserPermissions) || defaultStaffPermissions;
+  }
+
+  try {
+    const [user] = await db!
+      .select()
+      .from(users)
+      .where(eq(users.username, username.toLowerCase()));
+    if (!user) return defaultStaffPermissions;
+    if (user.role === 'OWNER') return defaultOwnerPermissions;
+    return (user.permissions as UserPermissions) || defaultStaffPermissions;
+  } catch (error) {
+    console.error('Error fetching user permissions:', error);
+    return defaultStaffPermissions;
+  }
+}
+
+export async function checkPermission(permission: keyof UserPermissions, actionDescription: string) {
+  const currentUser = await getCurrentUserAction();
+  if (!currentUser) {
+    throw new Error('Authentication required');
+  }
+  
+  if (currentUser.role === 'OWNER') {
+    return true; // Owners always have all permissions
+  }
+  
+  const permissions = await getUserPermissions(currentUser.username);
+  if (!permissions[permission]) {
+    throw new Error(`Access denied: You do not have permission to ${actionDescription}`);
+  }
+  return true;
+}
+
+export async function updateUserPermissionsAction(
+  targetUsername: string,
+  permissions: UserPermissions
+) {
+  const currentUser = await getCurrentUserAction();
+  if (!currentUser || currentUser.role !== 'OWNER') {
+    throw new Error('Only owners can manage user permissions');
+  }
+
+  const usernameLower = targetUsername.trim().toLowerCase();
+
+  if (isDemoMode) {
+    const data = readLocalDb();
+    const userIndex = data.users.findIndex(u => u.username.toLowerCase() === usernameLower);
+    if (userIndex === -1) {
+      throw new Error('User not found');
+    }
+
+    data.users[userIndex].permissions = permissions;
+    writeLocalDb(data);
+
+    await logAuditAction('USER_PERMISSIONS_UPDATED', `Updated permissions for user "${usernameLower}"`);
+    revalidatePath('/');
+    return { success: true };
+  }
+
+  // Neon Postgres Mode
+  try {
+    const [existing] = await db!
+      .select()
+      .from(users)
+      .where(eq(users.username, usernameLower));
+    
+    if (!existing) {
+      throw new Error('User not found');
+    }
+
+    await db!
+      .update(users)
+      .set({ permissions })
+      .where(eq(users.username, usernameLower));
+
+    await logAuditAction('USER_PERMISSIONS_UPDATED', `Updated permissions for user "${usernameLower}"`);
+    revalidatePath('/');
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error updating user permissions in DB:', err);
+    throw new Error(err.message || 'Failed to update user permissions');
+  }
+}
+
+// 22. SEND SMS ACTION
+export async function sendSMSAction(phone: string, message: string) {
+  const cleanPhone = phone.trim().replace(/[^0-9+]/g, '');
+  if (!cleanPhone) {
+    throw new Error('Invalid phone number');
+  }
+
+  const provider = process.env.SMS_PROVIDER || 'MOCK';
+  const apiKey = process.env.SMS_API_KEY || '';
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID || '';
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN || '';
+  const twilioFrom = process.env.TWILIO_FROM_NUMBER || '';
+
+  console.log(`Sending SMS to ${cleanPhone} via ${provider}: "${message}"`);
+
+  let success = false;
+  let statusDetail = 'Mock sent successfully';
+
+  if (provider === 'GREENWEB') {
+    if (!apiKey) {
+      statusDetail = 'Greenweb API key missing';
+      console.error(statusDetail);
+    } else {
+      try {
+        const url = `https://api.greenweb.com.bd/api.php?json&token=${apiKey}&to=${cleanPhone}&message=${encodeURIComponent(message)}`;
+        const res = await fetch(url);
+        const json = await res.json();
+        if (json && json.status === 'OK') {
+          success = true;
+          statusDetail = 'Greenweb delivered';
+        } else {
+          statusDetail = `Greenweb failed: ${JSON.stringify(json)}`;
+        }
+      } catch (err: any) {
+        statusDetail = `Greenweb fetch error: ${err.message}`;
+      }
+    }
+  } else if (provider === 'TWILIO') {
+    if (!twilioSid || !twilioToken || !twilioFrom) {
+      statusDetail = 'Twilio credentials missing';
+      console.error(statusDetail);
+    } else {
+      try {
+        const url = `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`;
+        const headers = new Headers();
+        headers.set('Authorization', 'Basic ' + Buffer.from(twilioSid + ':' + twilioToken).toString('base64'));
+        headers.set('Content-Type', 'application/x-www-form-urlencoded');
+
+        const body = new URLSearchParams({
+          To: cleanPhone,
+          From: twilioFrom,
+          Body: message
+        });
+
+        const res = await fetch(url, { method: 'POST', headers, body });
+        const json = await res.json();
+        if (res.ok) {
+          success = true;
+          statusDetail = 'Twilio delivered';
+        } else {
+          statusDetail = `Twilio failed: ${json.message || JSON.stringify(json)}`;
+        }
+      } catch (err: any) {
+        statusDetail = `Twilio fetch error: ${err.message}`;
+      }
+    }
+  } else {
+    // MOCK MODE
+    success = true;
+    statusDetail = `Mock SMS logged: "${message}"`;
+  }
+
+  await logAuditAction('SMS_SENT', `SMS to ${cleanPhone} status: ${statusDetail}. Message: "${message}"`);
+  return { success, statusDetail };
+}
+
+// 23. SEND INVOICE SMS RECEIPT
+export async function sendInvoiceSMSAction(invoiceId: number) {
+  let invoice: any = null;
+  let partyPhone: string | null = null;
+
+  if (isDemoMode) {
+    const data = readLocalDb();
+    invoice = data.invoices.find(i => i.id === invoiceId);
+    if (invoice) {
+      const p = data.parties.find(x => x.id === invoice.partyId);
+      partyPhone = (p && p.phone) ? p.phone : null;
+    }
+  } else {
+    const [inv] = await db!
+      .select()
+      .from(invoices)
+      .where(eq(invoices.id, invoiceId));
+    
+    if (inv) {
+      invoice = inv;
+      if (inv.partyId) {
+        const [p] = await db!
+          .select()
+          .from(parties)
+          .where(eq(parties.id, inv.partyId));
+        partyPhone = (p && p.phone) ? p.phone : null;
+      }
+    }
+  }
+
+  if (!invoice) {
+    throw new Error('Invoice not found');
+  }
+
+  if (!partyPhone) {
+    if (isDemoMode) {
+      const data = readLocalDb();
+      const p = data.parties.find(x => x.name.toLowerCase() === invoice.partyName.toLowerCase());
+      partyPhone = (p && p.phone) ? p.phone : null;
+    } else {
+      const [p] = await db!
+        .select()
+        .from(parties)
+        .where(eq(parties.name, invoice.partyName));
+      partyPhone = (p && p.phone) ? p.phone : null;
+    }
+  }
+
+  if (!partyPhone) {
+    return { success: false, error: 'Customer phone number not available' };
+  }
+
+  const shopName = 'Fardin Electricals';
+  const typeText = invoice.invoiceType === 'SALES' ? 'Bill' : 'Purchase';
+  const dueText = parseFloat(String(invoice.dueAmount)) > 0 ? ` Due: ৳${invoice.dueAmount}.` : '';
+  const message = `Dear Customer, your ${typeText} ${invoice.manualInvoiceNo} at ${shopName} is saved. Total: ৳${invoice.totalAmount}. Paid: ৳${invoice.paidAmount}.${dueText} Thank you!`;
+
+  return await sendSMSAction(partyPhone, message);
+}
+
+// 24. SEND DUE COLLECTION REMINDER SMS
+export async function sendDueReminderSMSAction(invoiceId: number) {
+  let invoice: any = null;
+  let partyPhone: string | null = null;
+
+  if (isDemoMode) {
+    const data = readLocalDb();
+    invoice = data.invoices.find(i => i.id === invoiceId);
+    if (invoice) {
+      const p = data.parties.find(x => x.id === invoice.partyId);
+      partyPhone = (p && p.phone) ? p.phone : null;
+    }
+  } else {
+    const [inv] = await db!
+      .select()
+      .from(invoices)
+      .where(eq(invoices.id, invoiceId));
+    
+    if (inv) {
+      invoice = inv;
+      if (inv.partyId) {
+        const [p] = await db!
+          .select()
+          .from(parties)
+          .where(eq(parties.id, inv.partyId));
+        partyPhone = (p && p.phone) ? p.phone : null;
+      }
+    }
+  }
+
+  if (!invoice) {
+    throw new Error('Invoice not found');
+  }
+
+  if (!partyPhone) {
+    if (isDemoMode) {
+      const data = readLocalDb();
+      const p = data.parties.find(x => x.name.toLowerCase() === invoice.partyName.toLowerCase());
+      partyPhone = (p && p.phone) ? p.phone : null;
+    } else {
+      const [p] = await db!
+        .select()
+        .from(parties)
+        .where(eq(parties.name, invoice.partyName));
+      partyPhone = (p && p.phone) ? p.phone : null;
+    }
+  }
+
+  if (!partyPhone) {
+    return { success: false, error: 'Customer phone number not available' };
+  }
+
+  const shopName = 'Fardin Electricals';
+  const message = `Dear Customer, this is a friendly reminder that a balance of ৳${invoice.dueAmount} is due for invoice ${invoice.manualInvoiceNo} at ${shopName}. Please clear it at your earliest convenience. Thank you!`;
+
+  return await sendSMSAction(partyPhone, message);
+}
+
+// 25. SAVE ONLINE ORDER
+export async function saveOnlineOrderAction(orderData: {
+  customerName: string;
+  customerPhone: string;
+  customerAddress?: string;
+  items: { productId: number; variantId?: number | null; quantity: number; unitPrice: number; name: string }[];
+  customerId?: number | null;
+}) {
+  if (orderData.items.length === 0) {
+    throw new Error('Order must contain at least one item');
+  }
+
+  const orderNo = `ORD-${Math.floor(100000 + Math.random() * 900000)}`;
+  const orderDate = new Date().toISOString().split('T')[0];
+  const totalAmount = orderData.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+
+  if (isDemoMode) {
+    const data = readLocalDb();
+    const orderId = data.onlineOrders && data.onlineOrders.length > 0
+      ? Math.max(...data.onlineOrders.map(o => o.id)) + 1
+      : 1;
+
+    const newOrder = {
+      id: orderId,
+      orderNo,
+      customerName: orderData.customerName,
+      customerPhone: orderData.customerPhone,
+      customerAddress: orderData.customerAddress || null,
+      orderDate,
+      status: 'PENDING' as const,
+      totalAmount,
+      items: orderData.items,
+      customerId: orderData.customerId || null
+    };
+
+    if (!data.onlineOrders) data.onlineOrders = [];
+    data.onlineOrders.push(newOrder);
+    writeLocalDb(data);
+
+    return { success: true, order: newOrder };
+  } else {
+    try {
+      const [newOrder] = await db!
+        .insert(onlineOrders)
+        .values({
+          orderNo,
+          customerName: orderData.customerName,
+          customerPhone: orderData.customerPhone,
+          customerAddress: orderData.customerAddress || null,
+          orderDate,
+          status: 'PENDING',
+          totalAmount: String(totalAmount),
+          items: orderData.items,
+          customerId: orderData.customerId || null
+        })
+        .returning();
+
+      return { success: true, order: newOrder };
+    } catch (err: any) {
+      console.error(err);
+      return { success: false, error: err.message };
+    }
+  }
+}
+
+// 26. GET ONLINE ORDERS
+export async function getOnlineOrdersAction() {
+  await checkPermission('allowSales', 'view online orders');
+
+  if (isDemoMode) {
+    const data = readLocalDb();
+    return (data.onlineOrders || []).sort((a, b) => b.orderDate.localeCompare(a.orderDate));
+  } else {
+    try {
+      const results = await db!
+        .select()
+        .from(onlineOrders)
+        .orderBy(desc(onlineOrders.orderDate));
+      
+      return results.map(r => ({
+        ...r,
+        totalAmount: parseDecimal(r.totalAmount)
+      }));
+    } catch (err) {
+      console.error(err);
+      return [];
+    }
+  }
+}
+
+// 27. UPDATE ONLINE ORDER STATUS
+export async function updateOnlineOrderStatusAction(orderId: number, status: 'APPROVED' | 'CANCELLED') {
+  await checkPermission('allowSales', 'manage online orders');
+
+  if (isDemoMode) {
+    const data = readLocalDb();
+    const order = (data.onlineOrders || []).find(o => o.id === orderId);
+    if (!order) throw new Error('Order not found');
+    order.status = status;
+    writeLocalDb(data);
+    return { success: true };
+  } else {
+    try {
+      await db!
+        .update(onlineOrders)
+        .set({ status })
+        .where(eq(onlineOrders.id, orderId));
+      return { success: true };
+    } catch (err: any) {
+      console.error(err);
+      return { success: false, error: err.message };
+    }
+  }
+}
+
+// 28. CONVERT ONLINE ORDER TO INVOICE
+export async function convertOnlineOrderToInvoiceAction(orderId: number, paidAmount: number, expectedPaymentDate?: string) {
+  await checkPermission('allowSales', 'approve and convert online orders');
+
+  let order: any = null;
+
+  if (isDemoMode) {
+    const data = readLocalDb();
+    order = (data.onlineOrders || []).find(o => o.id === orderId);
+  } else {
+    const [row] = await db!.select().from(onlineOrders).where(eq(onlineOrders.id, orderId));
+    if (row) {
+      order = {
+        ...row,
+        totalAmount: parseDecimal(row.totalAmount)
+      };
+    }
+  }
+
+  if (!order) {
+    throw new Error('Order not found');
+  }
+
+  if (order.status !== 'PENDING') {
+    throw new Error('Order is already processed');
+  }
+
+  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+  const manualInvoiceNo = `INV-ONL-${randomSuffix}`;
+
+  const invoicePayload = {
+    invoiceType: 'SALES' as const,
+    manualInvoiceNo,
+    invoiceDate: new Date().toISOString().split('T')[0],
+    partyName: order.customerName,
+    totalAmount: order.totalAmount,
+    paidAmount,
+    dueAmount: Math.max(0, order.totalAmount - paidAmount),
+    expectedPaymentDate: expectedPaymentDate || null
+  };
+
+  const itemsPayload = order.items.map((item: any) => ({
+    productId: item.productId,
+    variantId: item.variantId || null,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice
+  }));
+
+  const res = await saveInvoiceAction(invoicePayload, itemsPayload);
+  if (res.success) {
+    await updateOnlineOrderStatusAction(orderId, 'APPROVED');
+    
+    if (order.customerPhone) {
+      try {
+        const msg = `Dear ${order.customerName}, your online order ${order.orderNo} has been APPROVED! Invoice: ${manualInvoiceNo}. Total: BDT ${order.totalAmount}. Thank you - Fardin Electricals`;
+        await sendSMSAction(order.customerPhone, msg);
+      } catch (smsErr) {
+        console.error('Failed to send SMS confirmation for approved order:', smsErr);
+      }
+    }
+    return { success: true, manualInvoiceNo };
+  } else {
+    throw new Error((res as any).error || 'Conversion failed');
+  }
+}
+
+// 29. REGISTER CUSTOMER ACTION
+export async function registerCustomerAction(name: string, phone: string, address: string, passwordPin: string) {
+  if (!name || !phone || !passwordPin) {
+    throw new Error('Name, Phone, and Password/PIN are required');
+  }
+
+  if (isDemoMode) {
+    const data = readLocalDb();
+    if (!data.customers) data.customers = [];
+    
+    // Check if phone already registered
+    const exists = data.customers.some(c => c.phone === phone);
+    if (exists) {
+      throw new Error('This phone number is already registered');
+    }
+
+    const customerId = data.customers.length > 0
+      ? Math.max(...data.customers.map(c => c.id)) + 1
+      : 1;
+
+    const newCust = {
+      id: customerId,
+      name,
+      phone,
+      address: address || null,
+      passwordHash: passwordPin // In mock demo we store PIN plaintext
+    };
+
+    data.customers.push(newCust);
+    writeLocalDb(data);
+
+    const sessionData = { id: newCust.id, name: newCust.name, phone: newCust.phone, address: newCust.address };
+    const cookieStore = await cookies();
+    cookieStore.set('customer_session', JSON.stringify(sessionData), { maxAge: 60 * 60 * 24 * 30, path: '/' }); // 30 days session
+    return { success: true, customer: sessionData };
+  } else {
+    try {
+      // Check existing
+      const [exists] = await db!.select().from(customers).where(eq(customers.phone, phone));
+      if (exists) {
+        throw new Error('This phone number is already registered');
+      }
+
+      const [newCust] = await db!
+        .insert(customers)
+        .values({
+          name,
+          phone,
+          address: address || null,
+          passwordHash: passwordPin
+        })
+        .returning();
+
+      const sessionData = { id: newCust.id, name: newCust.name, phone: newCust.phone, address: newCust.address };
+      const cookieStore = await cookies();
+      cookieStore.set('customer_session', JSON.stringify(sessionData), { maxAge: 60 * 60 * 24 * 30, path: '/' });
+      return { success: true, customer: sessionData };
+    } catch (err: any) {
+      throw new Error(err.message || 'Registration failed');
+    }
+  }
+}
+
+// 30. LOGIN CUSTOMER ACTION
+export async function loginCustomerAction(phone: string, passwordPin: string) {
+  if (!phone || !passwordPin) {
+    throw new Error('Phone and Password/PIN are required');
+  }
+
+  if (isDemoMode) {
+    const data = readLocalDb();
+    const customer = (data.customers || []).find(c => c.phone === phone && c.passwordHash === passwordPin);
+    if (!customer) {
+      throw new Error('Invalid phone number or password/PIN');
+    }
+
+    const sessionData = { id: customer.id, name: customer.name, phone: customer.phone, address: customer.address };
+    const cookieStore = await cookies();
+    cookieStore.set('customer_session', JSON.stringify(sessionData), { maxAge: 60 * 60 * 24 * 30, path: '/' });
+    return { success: true, customer: sessionData };
+  } else {
+    try {
+      const [customer] = await db!
+        .select()
+        .from(customers)
+        .where(eq(customers.phone, phone));
+
+      if (!customer || customer.passwordHash !== passwordPin) {
+        throw new Error('Invalid phone number or password/PIN');
+      }
+
+      const sessionData = { id: customer.id, name: customer.name, phone: customer.phone, address: customer.address };
+      const cookieStore = await cookies();
+      cookieStore.set('customer_session', JSON.stringify(sessionData), { maxAge: 60 * 60 * 24 * 30, path: '/' });
+      return { success: true, customer: sessionData };
+    } catch (err: any) {
+      throw new Error(err.message || 'Login failed');
+    }
+  }
+}
+
+// 31. LOGOUT CUSTOMER ACTION
+export async function logoutCustomerAction() {
+  const cookieStore = await cookies();
+  cookieStore.delete('customer_session');
+  return { success: true };
+}
+
+// 32. GET CURRENT CUSTOMER
+export async function getCurrentCustomerAction() {
+  const cookieStore = await cookies();
+  const session = cookieStore.get('customer_session');
+  if (!session) return null;
+  try {
+    return JSON.parse(session.value);
+  } catch (err) {
+    return null;
+  }
+}
+
+// 33. GET CUSTOMER ORDERS
+export async function getCustomerOrdersAction() {
+  const customer = await getCurrentCustomerAction();
+  if (!customer) {
+    throw new Error('Authentication required');
+  }
+
+  if (isDemoMode) {
+    const data = readLocalDb();
+    return (data.onlineOrders || [])
+      .filter(o => o.customerId === customer.id || o.customerPhone === customer.phone)
+      .sort((a, b) => b.orderDate.localeCompare(a.orderDate));
+  } else {
+    try {
+      const results = await db!
+        .select()
+        .from(onlineOrders)
+        .where(eq(onlineOrders.customerId, customer.id))
+        .orderBy(desc(onlineOrders.orderDate));
+
+      return results.map(r => ({
+        ...r,
+        totalAmount: parseDecimal(r.totalAmount)
+      }));
+    } catch (err) {
+      console.error(err);
+      return [];
+    }
+  }
+}
+
+// 34. GET PRODUCT BY ID
+export async function getProductByIdAction(productId: number) {
+  const productsList = await getProductsAction();
+  return productsList.find(p => p.id === productId) || null;
 }
 
 

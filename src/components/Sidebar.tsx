@@ -22,14 +22,15 @@ import {
   ShoppingBag,
   LogOut,
   Users,
-  History
+  History,
+  ShoppingCart
 } from 'lucide-react';
 
 interface SidebarProps {
   isCollapsed: boolean;
   onToggle: () => void;
   isDemo: boolean;
-  user: { username: string; role: 'OWNER' | 'STAFF'; name: string } | null;
+  user: { username: string; role: 'OWNER' | 'STAFF'; name: string; permissions?: any } | null;
 }
 
 export default function Sidebar({ isCollapsed, onToggle, isDemo, user }: SidebarProps) {
@@ -51,18 +52,33 @@ export default function Sidebar({ isCollapsed, onToggle, isDemo, user }: Sidebar
   };
 
   const navItems = [
-    { href: '/', label: t('dashboard'), icon: LayoutDashboard, ownerOnly: true },
-    { href: '/entry', label: t('backEntry'), icon: FileEdit, ownerOnly: false },
-    { href: '/products', label: language === 'en' ? 'Products' : 'পণ্য তালিকা', icon: ShoppingBag, ownerOnly: false },
-    { href: '/search', label: t('search'), icon: Search, ownerOnly: false },
-    { href: '/ledger', label: t('ledger'), icon: BookOpen, ownerOnly: true },
-    { href: '/expenses', label: t('expenses'), icon: DollarSign, ownerOnly: true },
-    { href: '/reports', label: t('reports'), icon: FileBarChart, ownerOnly: true },
-    { href: '/users', label: language === 'en' ? 'Staff Accounts' : 'স্টাফ অ্যাকাউন্ট', icon: Users, ownerOnly: true },
-    { href: '/logs', label: language === 'en' ? 'Activity Log' : 'অডিট লগ (ক্রিয়াকলাপ)', icon: History, ownerOnly: true },
+    { href: '/admin', label: t('dashboard'), icon: LayoutDashboard },
+    { href: '/pos', label: language === 'en' ? 'POS Billing' : 'পিওএস সেলস', icon: Zap },
+    { href: '/orders', label: language === 'en' ? 'Online Orders' : 'অনлайн অর্ডার', icon: ShoppingCart },
+    { href: '/entry', label: t('backEntry'), icon: FileEdit },
+    { href: '/products', label: language === 'en' ? 'Products' : 'পণ্য তালিকা', icon: ShoppingBag },
+    { href: '/search', label: t('search'), icon: Search },
+    { href: '/ledger', label: t('ledger'), icon: BookOpen },
+    { href: '/expenses', label: t('expenses'), icon: DollarSign },
+    { href: '/reports', label: t('reports'), icon: FileBarChart },
+    { href: '/users', label: language === 'en' ? 'Staff Accounts' : 'স্টাফ অ্যাকাউন্ট', icon: Users },
+    { href: '/logs', label: language === 'en' ? 'Activity Log' : 'অডিট লগ (ক্রিয়াকলাপ)', icon: History },
   ];
 
-  const visibleItems = navItems.filter(item => !item.ownerOnly || role === 'OWNER');
+  const visibleItems = navItems.filter(item => {
+    if (role === 'OWNER') return true;
+    const p = user?.permissions;
+    if (item.href === '/admin') return p?.allowReports ?? false;
+    if (item.href === '/pos') return p?.allowSales ?? false;
+    if (item.href === '/orders') return p?.allowSales ?? false;
+    if (item.href === '/entry') return (p?.allowSales || p?.allowPurchases) ?? true;
+    if (item.href === '/ledger') return p?.allowReports ?? false;
+    if (item.href === '/expenses') return p?.allowReports ?? false;
+    if (item.href === '/reports') return p?.allowReports ?? false;
+    if (item.href === '/users') return false; // Administrative settings: Owner-only
+    if (item.href === '/logs') return false;   // Audit logs: Owner-only
+    return true; // Products, Search, etc. are visible to staff
+  });
 
   return (
     <>

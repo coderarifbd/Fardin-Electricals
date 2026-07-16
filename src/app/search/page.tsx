@@ -776,6 +776,20 @@ export default function SearchPage() {
             </div>
 
             <div className="w-1/3 space-y-2.5 border border-zinc-200 p-4 rounded-xl font-semibold">
+              {(selectedInvoice as any).vatAmount > 0 ? (
+                <>
+                  <div className="flex justify-between text-zinc-500 text-[11px]">
+                    <span>Subtotal:</span>
+                    <span className="font-mono text-zinc-850">
+                      ৳{(selectedInvoice.totalAmount - Number((selectedInvoice as any).vatAmount)).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-zinc-500 text-[11px]">
+                    <span>VAT ({(selectedInvoice as any).vatRate}%):</span>
+                    <span className="font-mono text-zinc-850">৳{Number((selectedInvoice as any).vatAmount).toFixed(2)}</span>
+                  </div>
+                </>
+              ) : null}
               <div className="flex justify-between text-zinc-500 text-[11px]">
                 <span>Total Amount:</span>
                 <span className="font-mono text-zinc-800">৳{selectedInvoice.totalAmount.toFixed(2)}</span>

@@ -9,7 +9,7 @@ import { Shield, Loader2 } from 'lucide-react';
 export default function AppLayoutShell({ children }: { children: React.ReactNode }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [user, setUser] = useState<{ username: string; role: 'OWNER' | 'STAFF'; name: string } | null>(null);
+  const [user, setUser] = useState<{ username: string; role: 'OWNER' | 'STAFF'; name: string; permissions?: any } | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
@@ -24,7 +24,7 @@ export default function AppLayoutShell({ children }: { children: React.ReactNode
 
   useEffect(() => {
     async function checkAuth() {
-      if (pathname === '/login') {
+      if (pathname === '/login' || pathname === '/' || pathname === '/catalog' || pathname.startsWith('/product/')) {
         setCheckingAuth(false);
         return;
       }
@@ -53,17 +53,36 @@ export default function AppLayoutShell({ children }: { children: React.ReactNode
     });
   };
 
-  const isOwnerOnlyRoute = 
-    pathname === '/' || 
-    pathname.startsWith('/ledger') || 
-    pathname.startsWith('/expenses') || 
-    pathname.startsWith('/reports') || 
-    pathname.startsWith('/users') ||
-    pathname.startsWith('/logs');
+  let accessDenied = false;
+  if (user) {
+    if (user.role === 'STAFF') {
+      const p = user.permissions;
+      if (pathname === '/admin' && !p?.allowReports) accessDenied = true;
+      if (pathname.startsWith('/ledger') && !p?.allowReports) accessDenied = true;
+      if (pathname.startsWith('/expenses') && !p?.allowReports) accessDenied = true;
+      if (pathname.startsWith('/reports') && !p?.allowReports) accessDenied = true;
+      if (pathname.startsWith('/users')) accessDenied = true; // Users management is Owner-only
+      if (pathname.startsWith('/logs')) accessDenied = true;   // System audit logs is Owner-only
+      if (pathname.startsWith('/entry')) {
+        // Entry page requires either sales or purchases permission
+        if (!p?.allowSales && !p?.allowPurchases) accessDenied = true;
+      }
+      if (pathname.startsWith('/pos')) {
+        // POS billing requires sales permission
+        if (!p?.allowSales) accessDenied = true;
+      }
+      if (pathname.startsWith('/orders')) {
+        // Online Orders review requires sales permission
+        if (!p?.allowSales) accessDenied = true;
+      }
+      if (pathname === '/products/barcodes') {
+        // Barcode label generation requires stock edit permission
+        if (!p?.allowStockEdit) accessDenied = true;
+      }
+    }
+  }
 
-  const accessDenied = user?.role === 'STAFF' && isOwnerOnlyRoute;
-
-  if (pathname === '/login') {
+  if (pathname === '/login' || pathname === '/' || pathname === '/catalog' || pathname.startsWith('/product/')) {
     return <>{children}</>;
   }
 

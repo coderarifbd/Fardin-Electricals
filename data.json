@@ -5,9 +5,13 @@
       "name": "Polycab Wire 1.5 sqmm (90m)",
       "category": "Cables",
       "currentStock": 12,
-      "minStockAlert": 5,
+      "minStockAlert": 109,
       "movingAverageCost": 1850,
-      "barcode": "8901234567892"
+      "barcode": "8901234567892",
+      "imageUrl": null,
+      "description": "ক্যাটালগ পেজে থাকা যেকোনো প্রোডাক্টের ছবি অথবা টাইটেলে ক্লিক করলে গ্রাহক সরাসরি সেই প্রোডাক্টের সিঙ্গেল ডিটেইলস পেজে প্রবেশ করতে পারবেন।",
+      "unit": "গজ",
+      "retailPrice": 100
     },
     {
       "id": 3,
@@ -16,7 +20,9 @@
       "currentStock": 150,
       "minStockAlert": 50,
       "movingAverageCost": 18,
-      "barcode": "8901234567893"
+      "barcode": "8901234567893",
+      "unit": "পিছ",
+      "retailPrice": 0
     },
     {
       "id": 4,
@@ -25,7 +31,9 @@
       "currentStock": 80,
       "minStockAlert": 30,
       "movingAverageCost": 35,
-      "barcode": "8901234567894"
+      "barcode": "8901234567894",
+      "unit": "পিছ",
+      "retailPrice": 0
     },
     {
       "id": 5,
@@ -34,7 +42,9 @@
       "currentStock": 7,
       "minStockAlert": 4,
       "movingAverageCost": 2400,
-      "barcode": "8901234567895"
+      "barcode": "8901234567895",
+      "unit": "পিছ",
+      "retailPrice": 0
     },
     {
       "id": 6,
@@ -43,7 +53,9 @@
       "currentStock": 0,
       "minStockAlert": 10,
       "movingAverageCost": 12,
-      "barcode": "8901234567896"
+      "barcode": "8901234567896",
+      "unit": "পিছ",
+      "retailPrice": 0
     },
     {
       "id": 7,
@@ -52,7 +64,9 @@
       "currentStock": 9,
       "minStockAlert": 10,
       "movingAverageCost": 30,
-      "barcode": null
+      "barcode": null,
+      "unit": "পিছ",
+      "retailPrice": 0
     },
     {
       "id": 8,
@@ -61,7 +75,9 @@
       "currentStock": 18,
       "minStockAlert": 5,
       "movingAverageCost": 10.5,
-      "barcode": "1234567890"
+      "barcode": "1234567890",
+      "unit": "পিছ",
+      "retailPrice": 0
     },
     {
       "id": 9,
@@ -71,7 +87,9 @@
       "minStockAlert": 5,
       "movingAverageCost": 0,
       "barcode": null,
-      "imageUrl": "/product-images/1783848531682-j0xy23-1_9027478d-ebcf-4ceb-aa4f-a015e5560a25.jpg"
+      "imageUrl": "/product-images/1783848531682-j0xy23-1_9027478d-ebcf-4ceb-aa4f-a015e5560a25.jpg",
+      "unit": "পিছ",
+      "retailPrice": 0
     },
     {
       "id": 10,
@@ -81,7 +99,9 @@
       "minStockAlert": 0,
       "movingAverageCost": 0,
       "barcode": null,
-      "imageUrl": null
+      "imageUrl": null,
+      "unit": "পিছ",
+      "retailPrice": 0
     },
     {
       "id": 11,
@@ -91,7 +111,33 @@
       "minStockAlert": 0,
       "movingAverageCost": 0,
       "barcode": null,
-      "imageUrl": null
+      "imageUrl": null,
+      "unit": "পিছ",
+      "retailPrice": 0
+    },
+    {
+      "id": 12,
+      "name": "Cables - RR",
+      "category": "Cables",
+      "currentStock": 715,
+      "minStockAlert": 0,
+      "movingAverageCost": 0,
+      "barcode": null,
+      "imageUrl": null,
+      "unit": "পিছ",
+      "retailPrice": 0
+    },
+    {
+      "id": 13,
+      "name": "Polycab Cable",
+      "category": "Cables",
+      "currentStock": -2,
+      "minStockAlert": 0,
+      "movingAverageCost": 0,
+      "barcode": null,
+      "imageUrl": null,
+      "unit": "পিছ",
+      "retailPrice": 0
     }
   ],
   "invoices": [
@@ -103,7 +149,10 @@
       "partyName": "Polycab Distributors Ltd.",
       "totalAmount": 22200,
       "paidAmount": 20000,
-      "dueAmount": 2200
+      "dueAmount": 2200,
+      "vatRate": 0,
+      "vatAmount": 0,
+      "discountAmount": 0
     },
     {
       "id": 2,
@@ -113,7 +162,10 @@
       "partyName": "Kabir Rahman",
       "totalAmount": 4800,
       "paidAmount": 4800,
-      "dueAmount": 0
+      "dueAmount": 0,
+      "vatRate": 0,
+      "vatAmount": 0,
+      "discountAmount": 0
     },
     {
       "id": 3,
@@ -123,7 +175,10 @@
       "partyName": "Mizanur Rahman",
       "totalAmount": 1850,
       "paidAmount": 1850,
-      "dueAmount": 0
+      "dueAmount": 0,
+      "vatRate": 0,
+      "vatAmount": 0,
+      "discountAmount": 0
     },
     {
       "id": 4,
@@ -134,7 +189,10 @@
       "totalAmount": 260,
       "paidAmount": 260,
       "dueAmount": 0,
-      "expectedPaymentDate": null
+      "expectedPaymentDate": null,
+      "vatRate": 0,
+      "vatAmount": 0,
+      "discountAmount": 0
     },
     {
       "id": 5,
@@ -147,7 +205,10 @@
       "dueAmount": 0,
       "expectedPaymentDate": null,
       "createdBy": "owner",
-      "partyId": 4
+      "partyId": 4,
+      "vatRate": 0,
+      "vatAmount": 0,
+      "discountAmount": 0
     },
     {
       "id": 6,
@@ -160,7 +221,10 @@
       "dueAmount": 0,
       "expectedPaymentDate": null,
       "createdBy": "owner",
-      "partyId": 4
+      "partyId": 4,
+      "vatRate": 0,
+      "vatAmount": 0,
+      "discountAmount": 0
     },
     {
       "id": 7,
@@ -173,7 +237,10 @@
       "dueAmount": 0,
       "expectedPaymentDate": null,
       "createdBy": "owner",
-      "partyId": 5
+      "partyId": 5,
+      "vatRate": 0,
+      "vatAmount": 0,
+      "discountAmount": 0
     },
     {
       "id": 8,
@@ -186,7 +253,10 @@
       "dueAmount": 0,
       "expectedPaymentDate": null,
       "createdBy": "owner",
-      "partyId": 1
+      "partyId": 1,
+      "vatRate": 0,
+      "vatAmount": 0,
+      "discountAmount": 0
     },
     {
       "id": 9,
@@ -199,7 +269,74 @@
       "dueAmount": 0,
       "expectedPaymentDate": null,
       "createdBy": "owner",
-      "partyId": 6
+      "partyId": 6,
+      "vatRate": 0,
+      "vatAmount": 0,
+      "discountAmount": 0
+    },
+    {
+      "id": 10,
+      "invoiceType": "PURCHASE",
+      "manualInvoiceNo": "4",
+      "invoiceDate": "2026-07-12",
+      "partyName": "RR KABEL",
+      "totalAmount": 25521.3,
+      "paidAmount": 25521.3,
+      "dueAmount": 0,
+      "expectedPaymentDate": null,
+      "createdBy": "owner",
+      "partyId": 7,
+      "vatRate": 0,
+      "vatAmount": 0,
+      "discountAmount": 0
+    },
+    {
+      "id": 11,
+      "invoiceType": "SALES",
+      "manualInvoiceNo": "3",
+      "invoiceDate": "2026-07-12",
+      "partyName": "Mahfuz",
+      "totalAmount": 300,
+      "paidAmount": 300,
+      "dueAmount": 0,
+      "expectedPaymentDate": null,
+      "createdBy": "owner",
+      "partyId": 8,
+      "vatRate": 0,
+      "vatAmount": 0,
+      "discountAmount": 0
+    },
+    {
+      "id": 12,
+      "invoiceType": "SALES",
+      "manualInvoiceNo": "INV-ONL-7506",
+      "invoiceDate": "2026-07-14",
+      "partyName": "Ariful Islam",
+      "totalAmount": 0,
+      "paidAmount": 0,
+      "dueAmount": 0,
+      "expectedPaymentDate": null,
+      "createdBy": "owner",
+      "partyId": 4,
+      "vatRate": 0,
+      "vatAmount": 0,
+      "discountAmount": 0
+    },
+    {
+      "id": 13,
+      "invoiceType": "SALES",
+      "manualInvoiceNo": "INV-ONL-7507",
+      "invoiceDate": "2026-07-14",
+      "partyName": "Mahfuz",
+      "totalAmount": 316.9,
+      "paidAmount": 316.9,
+      "dueAmount": 0,
+      "expectedPaymentDate": null,
+      "createdBy": "owner",
+      "partyId": 8,
+      "vatRate": 0,
+      "vatAmount": 0,
+      "discountAmount": 10
     }
   ],
   "invoiceItems": [
@@ -290,6 +427,96 @@
       "quantity": 2,
       "unitPrice": 15,
       "costPriceAtSale": 10.5
+    },
+    {
+      "id": 12,
+      "invoiceId": 10,
+      "productId": 12,
+      "variantId": 5,
+      "quantity": 105,
+      "unitPrice": 26.15,
+      "costPriceAtSale": 26.15
+    },
+    {
+      "id": 13,
+      "invoiceId": 10,
+      "productId": 12,
+      "variantId": 6,
+      "quantity": 105,
+      "unitPrice": 26.15,
+      "costPriceAtSale": 26.15
+    },
+    {
+      "id": 14,
+      "invoiceId": 10,
+      "productId": 12,
+      "variantId": 7,
+      "quantity": 105,
+      "unitPrice": 33,
+      "costPriceAtSale": 33
+    },
+    {
+      "id": 15,
+      "invoiceId": 10,
+      "productId": 12,
+      "variantId": 8,
+      "quantity": 105,
+      "unitPrice": 33,
+      "costPriceAtSale": 33
+    },
+    {
+      "id": 16,
+      "invoiceId": 10,
+      "productId": 12,
+      "variantId": 9,
+      "quantity": 105,
+      "unitPrice": 50.05,
+      "costPriceAtSale": 50.05
+    },
+    {
+      "id": 17,
+      "invoiceId": 10,
+      "productId": 12,
+      "variantId": 10,
+      "quantity": 105,
+      "unitPrice": 50.05,
+      "costPriceAtSale": 50.05
+    },
+    {
+      "id": 18,
+      "invoiceId": 10,
+      "productId": 12,
+      "variantId": 11,
+      "quantity": 105,
+      "unitPrice": 24.66,
+      "costPriceAtSale": 24.66
+    },
+    {
+      "id": 19,
+      "invoiceId": 11,
+      "productId": 12,
+      "variantId": 5,
+      "quantity": 10,
+      "unitPrice": 30,
+      "costPriceAtSale": 26.15
+    },
+    {
+      "id": 20,
+      "invoiceId": 12,
+      "productId": 13,
+      "variantId": 13,
+      "quantity": 2,
+      "unitPrice": 0,
+      "costPriceAtSale": 0
+    },
+    {
+      "id": 21,
+      "invoiceId": 13,
+      "productId": 12,
+      "variantId": 5,
+      "quantity": 10,
+      "unitPrice": 32.69,
+      "costPriceAtSale": 26.15
     }
   ],
   "expenses": [
@@ -321,14 +548,28 @@
       "username": "owner",
       "passwordHash": "owner123",
       "role": "OWNER",
-      "name": "Ariful Islam"
+      "name": "Ariful Islam",
+      "permissions": {
+        "allowSales": true,
+        "allowPurchases": true,
+        "allowReports": true,
+        "allowDelete": true,
+        "allowStockEdit": true
+      }
     },
     {
       "id": 2,
       "username": "staff",
       "passwordHash": "staff123",
       "role": "STAFF",
-      "name": "Md. Karim"
+      "name": "Md. Karim",
+      "permissions": {
+        "allowSales": true,
+        "allowPurchases": true,
+        "allowReports": false,
+        "allowDelete": false,
+        "allowStockEdit": false
+      }
     }
   ],
   "parties": [
@@ -375,6 +616,22 @@
     {
       "id": 6,
       "name": "Ariful",
+      "partyType": "CUSTOMER",
+      "phone": null,
+      "address": null,
+      "currentBalance": 0
+    },
+    {
+      "id": 7,
+      "name": "RR KABEL",
+      "partyType": "SUPPLIER",
+      "phone": null,
+      "address": null,
+      "currentBalance": 0
+    },
+    {
+      "id": 8,
+      "name": "Mahfuz",
       "partyType": "CUSTOMER",
       "phone": null,
       "address": null,
@@ -557,6 +814,69 @@
       "action": "ADD_PRODUCT",
       "details": "Manually added product: \"LED Tube Light\" (Category: Lighting)",
       "timestamp": "2026-07-12T09:53:17.320Z"
+    },
+    {
+      "id": 26,
+      "username": "owner",
+      "action": "ADD_PRODUCT",
+      "details": "Manually added product: \"Cables - RR\" (Category: Cables)",
+      "timestamp": "2026-07-12T10:13:01.679Z"
+    },
+    {
+      "id": 27,
+      "username": "owner",
+      "action": "ADD_PRODUCT",
+      "details": "Manually added product: \"Polycab Cable\" (Category: Cables)",
+      "timestamp": "2026-07-12T10:19:22.944Z"
+    },
+    {
+      "id": 28,
+      "username": "owner",
+      "action": "INVOICE_CREATED",
+      "details": "Saved PURCHASE invoice 4 for party \"RR KABEL\". Total: ৳25521.3",
+      "timestamp": "2026-07-12T10:22:40.227Z"
+    },
+    {
+      "id": 29,
+      "username": "owner",
+      "action": "INVOICE_CREATED",
+      "details": "Saved SALES invoice 3 for party \"Mahfuz\". Total: ৳300",
+      "timestamp": "2026-07-12T10:23:51.135Z"
+    },
+    {
+      "id": 30,
+      "username": "owner",
+      "action": "USER_LOGIN",
+      "details": "User logged in from IP (Demo)",
+      "timestamp": "2026-07-14T09:06:33.442Z"
+    },
+    {
+      "id": 31,
+      "username": "owner",
+      "action": "INVOICE_CREATED",
+      "details": "Saved SALES invoice INV-ONL-7506 for party \"Ariful Islam\". Total: ৳0",
+      "timestamp": "2026-07-14T09:24:16.036Z"
+    },
+    {
+      "id": 32,
+      "username": "owner",
+      "action": "SMS_SENT",
+      "details": "SMS to 01723757176 status: Mock SMS logged: \"Dear Ariful Islam, your online order ORD-809859 has been APPROVED! Invoice: INV-ONL-7506. Total: BDT 0. Thank you - Fardin Electricals\". Message: \"Dear Ariful Islam, your online order ORD-809859 has been APPROVED! Invoice: INV-ONL-7506. Total: BDT 0. Thank you - Fardin Electricals\"",
+      "timestamp": "2026-07-14T09:24:16.042Z"
+    },
+    {
+      "id": 33,
+      "username": "owner",
+      "action": "INVOICE_CREATED",
+      "details": "Saved SALES invoice INV-ONL-7507 for party \"Mahfuz\". Total: ৳316.9",
+      "timestamp": "2026-07-14T15:42:08.263Z"
+    },
+    {
+      "id": 34,
+      "username": "owner",
+      "action": "USER_LOGIN",
+      "details": "User logged in from IP (Demo)",
+      "timestamp": "2026-07-16T03:54:57.436Z"
     }
   ],
   "productVariants": [
@@ -568,7 +888,8 @@
       "minStockAlert": 0,
       "movingAverageCost": 0,
       "barcode": null,
-      "imageUrl": null
+      "imageUrl": null,
+      "retailPrice": 0
     },
     {
       "id": 2,
@@ -578,7 +899,8 @@
       "minStockAlert": 0,
       "movingAverageCost": 0,
       "barcode": null,
-      "imageUrl": null
+      "imageUrl": null,
+      "retailPrice": 0
     },
     {
       "id": 3,
@@ -588,7 +910,8 @@
       "minStockAlert": 0,
       "movingAverageCost": 0,
       "barcode": null,
-      "imageUrl": null
+      "imageUrl": null,
+      "retailPrice": 0
     },
     {
       "id": 4,
@@ -598,7 +921,219 @@
       "minStockAlert": 0,
       "movingAverageCost": 0,
       "barcode": null,
-      "imageUrl": null
+      "imageUrl": null,
+      "retailPrice": 0
+    },
+    {
+      "id": 5,
+      "productId": 12,
+      "name": "1.0RM - Red",
+      "currentStock": 85,
+      "minStockAlert": 0,
+      "movingAverageCost": 26.15,
+      "barcode": null,
+      "imageUrl": null,
+      "attributes": {
+        "Size": "1.0RM",
+        "Color": "Red"
+      },
+      "retailPrice": 0
+    },
+    {
+      "id": 6,
+      "productId": 12,
+      "name": "1.0RM - Black",
+      "currentStock": 105,
+      "minStockAlert": 0,
+      "movingAverageCost": 26.15,
+      "barcode": null,
+      "imageUrl": null,
+      "attributes": {
+        "Size": "1.0RM",
+        "Color": "Black"
+      },
+      "retailPrice": 0
+    },
+    {
+      "id": 7,
+      "productId": 12,
+      "name": "1.3RM - Red",
+      "currentStock": 105,
+      "minStockAlert": 0,
+      "movingAverageCost": 33,
+      "barcode": null,
+      "imageUrl": null,
+      "attributes": {
+        "Size": "1.3RM",
+        "Color": "Red"
+      },
+      "retailPrice": 0
+    },
+    {
+      "id": 8,
+      "productId": 12,
+      "name": "1.3RM - Black",
+      "currentStock": 105,
+      "minStockAlert": 0,
+      "movingAverageCost": 33,
+      "barcode": null,
+      "imageUrl": null,
+      "attributes": {
+        "Size": "1.3RM",
+        "Color": "Black"
+      },
+      "retailPrice": 0
+    },
+    {
+      "id": 9,
+      "productId": 12,
+      "name": "2.0RM - Red",
+      "currentStock": 105,
+      "minStockAlert": 0,
+      "movingAverageCost": 50.05,
+      "barcode": null,
+      "imageUrl": null,
+      "attributes": {
+        "Size": "2.0RM",
+        "Color": "Red"
+      },
+      "retailPrice": 0
+    },
+    {
+      "id": 10,
+      "productId": 12,
+      "name": "2.0RM - Black",
+      "currentStock": 105,
+      "minStockAlert": 0,
+      "movingAverageCost": 50.05,
+      "barcode": null,
+      "imageUrl": null,
+      "attributes": {
+        "Size": "2.0RM",
+        "Color": "Black"
+      },
+      "retailPrice": 0
+    },
+    {
+      "id": 11,
+      "productId": 12,
+      "name": "14/76 - Red",
+      "currentStock": 105,
+      "minStockAlert": 0,
+      "movingAverageCost": 24.66,
+      "barcode": null,
+      "imageUrl": null,
+      "attributes": {
+        "Size": "14/76",
+        "Color": "Red"
+      },
+      "retailPrice": 0
+    },
+    {
+      "id": 12,
+      "productId": 12,
+      "name": "14/76 - Black",
+      "currentStock": 0,
+      "minStockAlert": 0,
+      "movingAverageCost": 0,
+      "barcode": null,
+      "imageUrl": null,
+      "attributes": {
+        "Size": "14/76",
+        "Color": "Black"
+      },
+      "retailPrice": 0
+    },
+    {
+      "id": 13,
+      "productId": 13,
+      "name": "1.5 sqmm - Red",
+      "currentStock": -2,
+      "minStockAlert": 0,
+      "movingAverageCost": 0,
+      "barcode": null,
+      "imageUrl": null,
+      "attributes": {
+        "Size": "1.5 sqmm",
+        "Color": "Red"
+      },
+      "retailPrice": 0
+    },
+    {
+      "id": 14,
+      "productId": 13,
+      "name": "1.5 sqmm - Black",
+      "currentStock": 0,
+      "minStockAlert": 0,
+      "movingAverageCost": 0,
+      "barcode": null,
+      "imageUrl": null,
+      "attributes": {
+        "Size": "1.5 sqmm",
+        "Color": "Black"
+      },
+      "retailPrice": 0
+    },
+    {
+      "id": 15,
+      "productId": 13,
+      "name": "2.5 sqmm - Red",
+      "currentStock": 0,
+      "minStockAlert": 0,
+      "movingAverageCost": 0,
+      "barcode": null,
+      "imageUrl": null,
+      "attributes": {
+        "Size": "2.5 sqmm",
+        "Color": "Red"
+      },
+      "retailPrice": 0
+    },
+    {
+      "id": 16,
+      "productId": 13,
+      "name": "2.5 sqmm - Black",
+      "currentStock": 0,
+      "minStockAlert": 0,
+      "movingAverageCost": 0,
+      "barcode": null,
+      "imageUrl": null,
+      "attributes": {
+        "Size": "2.5 sqmm",
+        "Color": "Black"
+      },
+      "retailPrice": 0
+    }
+  ],
+  "onlineOrders": [
+    {
+      "id": 1,
+      "orderNo": "ORD-809859",
+      "customerName": "Ariful Islam",
+      "customerPhone": "01723757176",
+      "customerAddress": "na",
+      "orderDate": "2026-07-14",
+      "status": "APPROVED",
+      "totalAmount": 0,
+      "items": [
+        {
+          "productId": 13,
+          "variantId": 13,
+          "quantity": 2,
+          "unitPrice": 0,
+          "name": "Polycab Cable (1.5 sqmm - Red)"
+        }
+      ],
+      "customerId": 1
+    }
+  ],
+  "customers": [
+    {
+      "id": 1,
+      "name": "Ariful Islam",
+      "phone": "01723757176",
+      "address": "na",
+      "passwordHash": "38329008"
     }
   ]
 }

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { type UserPermissions } from './schema';
 
 const FILE_PATH = path.join(process.cwd(), 'data.json');
 
@@ -10,8 +11,12 @@ export interface Product {
   currentStock: number;
   minStockAlert: number;
   movingAverageCost: number;
+  retailPrice?: number;
   barcode?: string | null;
   imageUrl?: string | null;
+  description?: string | null;
+  // Unit of Measurement: পিছ | গজ | ফুট | মিটার | কয়েল | কেজি
+  unit?: string;
 }
 
 export interface ProductVariant {
@@ -21,6 +26,7 @@ export interface ProductVariant {
   currentStock: number;
   minStockAlert: number;
   movingAverageCost: number;
+  retailPrice?: number;
   barcode?: string | null;
   imageUrl?: string | null;
   attributes?: Record<string, string> | null;
@@ -38,6 +44,9 @@ export interface Invoice {
   expectedPaymentDate?: string | null;
   createdBy?: string | null;
   partyId?: number | null;
+  vatRate?: number;
+  vatAmount?: number;
+  discountAmount?: number;
 }
 
 export interface InvoiceItem {
@@ -65,6 +74,7 @@ export interface User {
   passwordHash: string;
   role: 'OWNER' | 'STAFF';
   name: string;
+  permissions?: UserPermissions | null;
 }
 
 export interface Party {
@@ -95,6 +105,27 @@ export interface AuditLog {
   timestamp: string; // ISO String
 }
 
+export interface OnlineOrder {
+  id: number;
+  orderNo: string;
+  customerName: string;
+  customerPhone: string;
+  customerAddress?: string | null;
+  orderDate: string; // YYYY-MM-DD
+  status: 'PENDING' | 'APPROVED' | 'CANCELLED';
+  totalAmount: number;
+  items: any[];
+  customerId?: number | null;
+}
+
+export interface Customer {
+  id: number;
+  phone: string;
+  name: string;
+  address?: string | null;
+  passwordHash: string;
+}
+
 export interface LocalDbData {
   products: Product[];
   productVariants: ProductVariant[];
@@ -105,9 +136,13 @@ export interface LocalDbData {
   parties: Party[];
   returns: Return[];
   auditLogs: AuditLog[];
+  onlineOrders?: OnlineOrder[];
+  customers?: Customer[];
 }
 
 const DEFAULT_DATA: LocalDbData = {
+  onlineOrders: [],
+  customers: [],
   products: [
     { id: 1, name: 'LED Bulb Havells', category: 'Lighting', currentStock: 0, minStockAlert: 0, movingAverageCost: 0, barcode: null },
     { id: 2, name: 'Polycab Wire', category: 'Cables', currentStock: 0, minStockAlert: 0, movingAverageCost: 0, barcode: null },
@@ -140,8 +175,34 @@ const DEFAULT_DATA: LocalDbData = {
     { id: 3, title: 'Evening Snacks & Tea', category: 'Tea-Snacks', amount: 350.00, date: '2026-06-15', createdBy: 'staff' }
   ],
   users: [
-    { id: 1, username: 'owner', passwordHash: 'owner123', role: 'OWNER', name: 'Al-Haj Rafiqul Islam' },
-    { id: 2, username: 'staff', passwordHash: 'staff123', role: 'STAFF', name: 'Md. Karim' }
+    { 
+      id: 1, 
+      username: 'owner', 
+      passwordHash: 'owner123', 
+      role: 'OWNER', 
+      name: 'Al-Haj Rafiqul Islam',
+      permissions: {
+        allowSales: true,
+        allowPurchases: true,
+        allowReports: true,
+        allowDelete: true,
+        allowStockEdit: true
+      }
+    },
+    { 
+      id: 2, 
+      username: 'staff', 
+      passwordHash: 'staff123', 
+      role: 'STAFF', 
+      name: 'Md. Karim',
+      permissions: {
+        allowSales: true,
+        allowPurchases: true,
+        allowReports: false,
+        allowDelete: false,
+        allowStockEdit: false
+      }
+    }
   ],
   parties: [
     { id: 1, name: 'Polycab Distributors Ltd.', partyType: 'SUPPLIER', phone: '01711122233', address: 'Nawabpur, Dhaka', currentBalance: -2200.00 }, // Neg balance means we owe supplier
@@ -170,6 +231,22 @@ export function readLocalDb(): LocalDbData {
     if (!parsed.returns) { parsed.returns = DEFAULT_DATA.returns; dirty = true; }
     if (!parsed.auditLogs) { parsed.auditLogs = DEFAULT_DATA.auditLogs; dirty = true; }
     if (!parsed.productVariants) { parsed.productVariants = []; dirty = true; }
+    if (!parsed.onlineOrders) { parsed.onlineOrders = []; dirty = true; }
+    if (!parsed.customers) { parsed.customers = []; dirty = true; }
+    
+    // Ensure all users have permissions property
+    parsed.users.forEach((u: any) => {
+      if (u.permissions === undefined) {
+        u.permissions = {
+          allowSales: true,
+          allowPurchases: true,
+          allowReports: u.role === 'OWNER',
+          allowDelete: u.role === 'OWNER',
+          allowStockEdit: u.role === 'OWNER'
+        };
+        dirty = true;
+      }
+    });
     
     // Ensure products have barcodes
     parsed.products.forEach((p: any) => {
@@ -179,6 +256,20 @@ export function readLocalDb(): LocalDbData {
         dirty = true;
       }
     });
+
+    // Ensure invoices have vatRate and vatAmount properties
+    if (parsed.invoices) {
+      parsed.invoices.forEach((i: any) => {
+        if (i.vatRate === undefined) {
+          i.vatRate = 0;
+          dirty = true;
+        }
+        if (i.vatAmount === undefined) {
+          i.vatAmount = 0;
+          dirty = true;
+        }
+      });
+    }
 
     if (dirty) {
       writeLocalDb(parsed);

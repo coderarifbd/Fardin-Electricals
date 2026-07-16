@@ -14,8 +14,19 @@ import {
   Calendar, 
   FileText,
   FileSpreadsheet,
-  Activity
+  Activity,
+  Percent
 } from 'lucide-react';
+import { 
+  ResponsiveContainer, 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend 
+} from 'recharts';
 
 interface Invoice {
   id: number;
@@ -115,6 +126,63 @@ export default function ReportsPage() {
   }));
 
   const grossProfit = metrics.totalSales - metrics.totalCogs;
+
+  // Calculate total VAT liability collected
+  const totalVatCollected = invoices
+    .filter(i => i.invoiceType === 'SALES')
+    .reduce((sum, i) => sum + (Number((i as any).vatAmount) || 0), 0);
+
+  // Group cashflow data dynamically for chart
+  const getCashflowChartData = () => {
+    const map = new Map<string, { cashIn: number; cashOut: number }>();
+    
+    invoices.forEach(inv => {
+      const key = reportType === 'YEARLY' ? inv.invoiceDate.substring(0, 7) : inv.invoiceDate;
+      if (!map.has(key)) {
+        map.set(key, { cashIn: 0, cashOut: 0 });
+      }
+      const val = map.get(key)!;
+      if (inv.invoiceType === 'SALES') {
+        val.cashIn += inv.paidAmount;
+      } else {
+        val.cashOut += inv.paidAmount;
+      }
+    });
+
+    expenses.forEach(exp => {
+      const key = reportType === 'YEARLY' ? exp.date.substring(0, 7) : exp.date;
+      if (!map.has(key)) {
+        map.set(key, { cashIn: 0, cashOut: 0 });
+      }
+      const val = map.get(key)!;
+      val.cashOut += exp.amount;
+    });
+
+    return Array.from(map.entries())
+      .map(([period, vals]) => {
+        let label = period;
+        if (reportType === 'YEARLY') {
+          const m = parseInt(period.split('-')[1]);
+          const mObj = months.find(x => x.value === m);
+          label = mObj ? (language === 'en' ? mObj.en.substring(0, 3) : mObj.bn) : period;
+        }
+        return {
+          period: label,
+          cashIn: parseFloat(vals.cashIn.toFixed(2)),
+          cashOut: parseFloat(vals.cashOut.toFixed(2))
+        };
+      })
+      .sort((a, b) => {
+        if (reportType === 'YEARLY') {
+          const aIndex = months.findIndex(m => (language === 'en' ? m.en.substring(0, 3) : m.bn) === a.period);
+          const bIndex = months.findIndex(m => (language === 'en' ? m.en.substring(0, 3) : m.bn) === b.period);
+          return aIndex - bIndex;
+        }
+        return a.period.localeCompare(b.period);
+      });
+  };
+
+  const chartData = getCashflowChartData();
 
   return (
     <div className="space-y-6 font-sans">
@@ -313,6 +381,59 @@ export default function ReportsPage() {
                 </div>
               </div>
 
+              {/* Cashflow Chart Card */}
+              {chartData.length > 0 && (
+                <div className="rounded-xl border border-neutral-850 bg-neutral-950/20 p-5 shadow-lg no-print">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-450 mb-4 flex items-center gap-1.5">
+                    <Activity className="h-4 w-4 text-emerald-400" />
+                    {language === 'en' ? 'Cash Flow Analysis' : 'ক্যাশ ফ্লো চার্ট (আয় বনাম ব্যয়)'}
+                  </h3>
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="colorCashIn" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.01}/>
+                          </linearGradient>
+                          <linearGradient id="colorCashOut" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2}/>
+                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0.01}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                        <XAxis dataKey="period" stroke="#71717a" fontSize={10} tickLine={false} />
+                        <YAxis stroke="#71717a" fontSize={10} tickLine={false} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px' }}
+                          labelStyle={{ color: '#a1a1aa', fontWeight: 'bold', fontSize: '11px' }}
+                          itemStyle={{ fontSize: '11px' }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
+                        <Area 
+                          type="monotone" 
+                          name={language === 'en' ? 'Cash Inflow (Paid Sales)' : 'ক্যাশ ইন (বিক্রয় জমা)'} 
+                          dataKey="cashIn" 
+                          stroke="#10b981" 
+                          fillOpacity={1} 
+                          fill="url(#colorCashIn)" 
+                          strokeWidth={2}
+                        />
+                        <Area 
+                          type="monotone" 
+                          name={language === 'en' ? 'Cash Outflow (Purchases & Expenses)' : 'ক্যাশ আউট (ক্রয় ও খরচ)'} 
+                          dataKey="cashOut" 
+                          stroke="#ef4444" 
+                          fillOpacity={1} 
+                          fill="url(#colorCashOut)" 
+                          strokeWidth={2}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
               {/* ITEMISED INVOICES REPORT */}
               <div className="space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 print-text-dark">
@@ -452,6 +573,17 @@ export default function ReportsPage() {
                       </div>
                     ))
                   )}
+                </div>
+
+                {/* VAT collected */}
+                <div className="space-y-2 border-t border-neutral-800/40 pt-2.5">
+                  <div className="flex justify-between font-bold text-neutral-200">
+                    <span>{language === 'en' ? 'Tax/VAT Liabilities Collected' : 'সংগৃহীত ভ্যাট দায় (VAT collected)'}</span>
+                    <span className="font-mono text-amber-550">৳{totalVatCollected.toFixed(2)}</span>
+                  </div>
+                  <div className="pl-4 text-neutral-500 text-[10px] italic">
+                    <span>{language === 'en' ? 'Note: VAT collected is a balance sheet liability, not operating income.' : 'দ্রষ্টব্য: সংগৃহীত ভ্যাট একটি লাইবিলিটি বা দায়, এটি কোম্পানির নিট আয় হিসেবে গণ্য নয়।'}</span>
+                  </div>
                 </div>
 
                 {/* 5. Net Income */}

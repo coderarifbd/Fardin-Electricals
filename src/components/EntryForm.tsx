@@ -74,10 +74,12 @@ export default function EntryForm() {
   const [invoiceDate, setInvoiceDate] = useState('');
   const [partyName, setPartyName] = useState('');
   const [paidAmount, setPaidAmount] = useState<number | ''>('');
+  const [discountAmount, setDiscountAmount] = useState<number | ''>('');
   const [expectedPaymentDate, setExpectedPaymentDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editInvoiceId, setEditInvoiceId] = useState<number | null>(null);
+  const [vatRate, setVatRate] = useState<number>(0);
 
   // Load invoice data for editing
   useEffect(() => {
@@ -103,7 +105,9 @@ export default function EntryForm() {
             setInvoiceDate(invoice.invoiceDate);
             setPartyName(invoice.partyName);
             setPaidAmount(invoice.paidAmount);
+            setDiscountAmount(invoice.discountAmount || 0);
             setExpectedPaymentDate(invoice.expectedPaymentDate || '');
+            setVatRate(Number(invoice.vatRate) || 0);
             
             // Populate items
             const itemList = await getInvoiceItemsAction(invId);
@@ -268,7 +272,10 @@ export default function EntryForm() {
   }, [invoiceType, isEditing, searchParams]);
 
   // Calculate totals
-  const totalAmount = rows.reduce((sum, row) => sum + (row.quantity * row.unitPrice || 0), 0);
+  const subtotal = rows.reduce((sum, row) => sum + (row.quantity * row.unitPrice || 0), 0);
+  const vatAmount = subtotal * (vatRate / 100);
+  const discountVal = typeof discountAmount === 'number' ? discountAmount : 0;
+  const totalAmount = Math.max(0, subtotal + vatAmount - discountVal);
   const calculatedDueAmount = Math.max(0, totalAmount - (typeof paidAmount === 'number' ? paidAmount : totalAmount));
 
   // Keyboard navigation focus handler
@@ -497,7 +504,10 @@ export default function EntryForm() {
       totalAmount,
       paidAmount: paidAmount === '' ? totalAmount : paidAmount,
       dueAmount: calculatedDueAmount,
-      expectedPaymentDate: calculatedDueAmount > 0 ? expectedPaymentDate : null
+      expectedPaymentDate: calculatedDueAmount > 0 ? expectedPaymentDate : null,
+      vatRate,
+      vatAmount,
+      discountAmount: typeof discountAmount === 'number' ? discountAmount : 0
     };
 
     const itemPayload = validItems.map(item => ({
@@ -526,6 +536,7 @@ export default function EntryForm() {
       setManualInvoiceNo('');
       setPartyName('');
       setPaidAmount('');
+      setDiscountAmount('');
       setExpectedPaymentDate('');
       setRows([
         {
@@ -988,9 +999,55 @@ export default function EntryForm() {
             {language === 'en' ? 'Summary' : 'সারসংক্ষেপ'}
           </h2>
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-neutral-400">{t('totalAmount')}</span>
+          <div className="space-y-4 text-xs">
+            <div className="flex items-center justify-between text-neutral-400">
+              <span>{language === 'en' ? 'Subtotal' : 'উপমোট'}</span>
+              <span className="font-mono">৳{subtotal.toFixed(2)}</span>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                {language === 'en' ? 'Tax/VAT (%)' : 'ভ্যাট (%)'}
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={vatRate || ''}
+                placeholder="0"
+                onChange={(e) => setVatRate(parseFloat(e.target.value) || 0)}
+                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 p-2.5 text-sm text-neutral-200 outline-none focus:border-amber-500 font-mono"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                {language === 'en' ? 'Discount (৳)' : 'ডিসকাউন্ট (৳)'}
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={discountAmount}
+                placeholder="0.00"
+                onChange={(e) => {
+                  const val = e.target.value === '' ? '' : parseFloat(e.target.value);
+                  setDiscountAmount(val);
+                }}
+                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 p-2.5 text-sm text-neutral-200 outline-none focus:border-amber-500 font-mono"
+              />
+            </div>
+
+            {vatAmount > 0 && (
+              <div className="flex items-center justify-between text-neutral-500 text-[11px] font-mono">
+                <span>VAT ({vatRate}%):</span>
+                <span>+৳{vatAmount.toFixed(2)}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between border-t border-neutral-850 pt-3">
+              <span className="text-sm text-neutral-400 font-bold">{t('totalAmount')}</span>
               <span className="text-lg font-bold font-mono text-neutral-100">৳{totalAmount.toFixed(2)}</span>
             </div>
 
